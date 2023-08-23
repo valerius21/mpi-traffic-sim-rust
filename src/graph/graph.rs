@@ -1,34 +1,44 @@
-use crate::models::graph_input::{Edge, Graph as GI, Vertex};
-use petgraph::{Directed, Graph};
+use std::collections::HashMap;
+
+use crate::models::graph_input::{Graph as GI, Vertex};
+use petgraph::{csr::NodeIndex, stable_graph::DefaultIx, Directed, Graph};
+
+#[derive(Debug, Clone)]
 pub struct OSMGraph {
-    pub graph: Graph<Vertex, Edge>,
+    pub graph: Graph<(), (), Directed, usize>,
 }
 
 pub trait GUtils {
-    fn get_vertex_by_id(id: u64, osm_graph: &GI) -> Vertex;
-
     fn new(osm_graph: GI) -> OSMGraph;
 }
 
 impl GUtils for OSMGraph {
-    fn get_vertex_by_id(id: u64, osm_graph: &GI) -> Vertex {
-        osm_graph
-            .vertices
-            .iter()
-            .find(|node| node.osm_id == id)
-            .unwrap()
-            .clone()
-    }
-
     fn new(osm_graph: GI) -> OSMGraph {
-        let mut graph = Graph::<Vertex, Edge, Directed>::new();
-        osm_graph.edges.iter().for_each(|edge| {
-            let from = OSMGraph::get_vertex_by_id(edge.from, &osm_graph);
-            let to = OSMGraph::get_vertex_by_id(edge.to, &osm_graph);
-            let source = graph.add_node(from);
-            let target = graph.add_node(to);
-            graph.update_edge(source, target, edge.clone());
+        let e_lst = osm_graph
+            .edges
+            .iter()
+            .map(|edge| (edge.from, edge.to))
+            .collect::<Vec<(usize, usize)>>();
+
+        println!("Creating graph with {} edges", e_lst.len());
+
+        let mut graph =
+            Graph::<(), (), Directed, usize>::with_capacity(osm_graph.vertices.len(), e_lst.len());
+
+        let mut map_osm_id_node_idx = HashMap::<usize, NodeIndex<usize>>::new();
+
+        osm_graph.vertices.iter().for_each(|vertex| {
+            let node = graph.add_node(());
+            map_osm_id_node_idx.insert(vertex.osm_id, node.index());
         });
+
+        println!("Created graph with {} nodes", graph.node_count());
+
+        // e_lst.iter().for_each(|edge| {
+        //     let src = *map_osm_id_node_idx.get(&edge.0).unwrap();
+        //     let dst = *map_osm_id_node_idx.get(&edge.1).unwrap();
+        //     let n_src: NodeIndex<usize> = NodeIndex::new(src);
+        // });
 
         OSMGraph { graph }
     }

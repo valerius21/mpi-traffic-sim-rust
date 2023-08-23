@@ -18,7 +18,9 @@ fn main() {
 
     let json = std::fs::read_to_string(args.path).unwrap();
     let model: GraphInput = serde_json::from_str(&json).unwrap();
+    println!("{:?}\nMODEL\n", model);
     let osm_graph = OSMGraph::new(model.graph);
+    println!("{:?}\nOSM\n", osm_graph);
     let my_graph = osm_graph.graph.clone();
-    println!("{:?}", my_graph);
+    println!("{:?}\nMGRAPH\n", my_graph);
 }

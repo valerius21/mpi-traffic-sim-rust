@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GraphInput {
     pub filename: String,
-    pub size: u64,
+    pub size: usize,
     pub graph: Graph,
 }
 
@@ -15,8 +15,8 @@ pub struct Graph {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Edge {
-    pub from: u64,
-    pub to: u64,
+    pub from: usize,
+    pub to: usize,
     pub length: f64,
     pub max_speed: String,
     pub name: String,
@@ -27,5 +27,5 @@ pub struct Edge {
 pub struct Vertex {
     pub x: f64,
     pub y: f64,
-    pub osm_id: u64,
+    pub osm_id: usize,
 }
