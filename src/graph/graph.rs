@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 
-use crate::models::graph_input::{Graph as GI, Vertex};
-use petgraph::{csr::NodeIndex, stable_graph::DefaultIx, Directed, Graph};
+use crate::models::graph_input::{Edge, Graph as GI, Vertex};
+use petgraph::{csr::NodeIndex, Directed, Graph};
 
 #[derive(Debug, Clone)]
 pub struct OSMGraph {
-    pub graph: Graph<(), (), Directed, usize>,
+    pub graph: Graph<Vertex, Edge, Directed, usize>,
 }
 
 pub trait GUtils {
@@ -20,26 +20,38 @@ impl GUtils for OSMGraph {
             .map(|edge| (edge.from, edge.to))
             .collect::<Vec<(usize, usize)>>();
 
-        println!("Creating graph with {} edges", e_lst.len());
+        let mut vertex_vec = Vec::<Vertex>::new();
 
-        let mut graph =
-            Graph::<(), (), Directed, usize>::with_capacity(osm_graph.vertices.len(), e_lst.len());
+        for edge in osm_graph.edges.iter() {
+            for vertex in osm_graph.vertices.iter() {
+                if vertex.osm_id == edge.from {
+                    vertex_vec.push(vertex.clone());
+                }
+                if vertex.osm_id == edge.to {
+                    vertex_vec.push(vertex.clone());
+                }
+            }
+        }
 
-        let mut map_osm_id_node_idx = HashMap::<usize, NodeIndex<usize>>::new();
+        let mut vtx = HashSet::new();
+        vertex_vec.retain(|x| vtx.insert(x.osm_id));
 
-        osm_graph.vertices.iter().for_each(|vertex| {
-            let node = graph.add_node(());
-            map_osm_id_node_idx.insert(vertex.osm_id, node.index());
-        });
+        let mut r_graph =
+            Graph::<Vertex, Edge, Directed, usize>::with_capacity(vertex_vec.len(), e_lst.len());
 
-        println!("Created graph with {} nodes", graph.node_count());
+        for vertex in vertex_vec.iter() {
+            r_graph.add_node(vertex.clone());
+        }
 
-        // e_lst.iter().for_each(|edge| {
-        //     let src = *map_osm_id_node_idx.get(&edge.0).unwrap();
-        //     let dst = *map_osm_id_node_idx.get(&edge.1).unwrap();
-        //     let n_src: NodeIndex<usize> = NodeIndex::new(src);
-        // });
+        for edge in osm_graph.edges.iter() {
+            let from = vertex_vec
+                .iter()
+                .position(|x| x.osm_id == edge.from)
+                .unwrap() as NodeIndex<usize>;
+            let to = vertex_vec.iter().position(|x| x.osm_id == edge.to).unwrap();
+            r_graph.add_edge(from.into(), to.into(), edge.clone());
+        }
 
-        OSMGraph { graph }
+        Self { graph: r_graph }
     }
 }

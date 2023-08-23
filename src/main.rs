@@ -3,6 +3,7 @@ mod models;
 use crate::graph::graph::{GUtils, OSMGraph};
 use crate::models::graph_input::GraphInput;
 use clap::Parser;
+use petgraph::dot::{Config, Dot};
 
 /// Traffic Simulation with MPI
 #[derive(Parser, Debug)]
@@ -18,9 +19,8 @@ fn main() {
 
     let json = std::fs::read_to_string(args.path).unwrap();
     let model: GraphInput = serde_json::from_str(&json).unwrap();
-    println!("{:?}\nMODEL\n", model);
     let osm_graph = OSMGraph::new(model.graph);
-    println!("{:?}\nOSM\n", osm_graph);
     let my_graph = osm_graph.graph.clone();
-    println!("{:?}\nMGRAPH\n", my_graph);
+
+    println!("{:?}", Dot::with_config(&my_graph, &[Config::EdgeNoLabel]));
 }

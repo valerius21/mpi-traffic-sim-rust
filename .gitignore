@@ -1,1 +1,4 @@
 /target
+*.viz
+*.png
+*.svg
