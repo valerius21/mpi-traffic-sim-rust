@@ -5,16 +5,15 @@
 # Learn more from ready-to-use templates: https://www.gitpod.io/docs/introduction/getting-started/quickstart
 
 tasks:
-  - name: openmpi
-    init: >
-      mkdir /tmp/mpi-src && cd /tmp/mpi-src &&
-      wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.5.tar.gz && tar xvf openmpi-4.1.5.tar.gz &&
-      cd openmpi-4.1.5 && ./configure --prefix=/usr/local && make all && make install && cd /workspace/mpi-traffic-sim-rust
+  - name: mpi
+    init: > 
+      sudo apt update && sudo apt upgrade -y && sudo apt install mpich libmpich-dev -y
   - name: cargo
-    init: gp sync-await openmpi && cargo build
-    command: cargo watch -x run -- --path ./assets/graph.json
+    init: gp sync-await mpi && cargo build
+    command: cargo run -- --path assets/graph.json
 
 vscode:
   extensions:
     - rust-lang.rust-analyzer
+    - tamasfe.even-better-toml
 
