@@ -1,8 +1,10 @@
 mod graph;
 mod models;
+mod streets;
 use crate::graph::graph::{GUtils, OSMGraph};
 use crate::models::graph_input::GraphInput;
 use clap::Parser;
+
 
 /// Traffic Simulation with MPI
 #[derive(Parser, Debug)]
