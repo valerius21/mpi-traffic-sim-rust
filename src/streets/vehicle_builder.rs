@@ -1,104 +1,81 @@
-//TODO: package/imports
-
-use crate::graph::graph::OSMGraph;
+use crate::{graph::graph::OSMGraph, models::vehicle::Vehicle};
 use std::vec::Vec;
 
-#[derive(Default, Debug)]
-pub struct VehicleBuilder {
-    pub speed:   f64,
-	pub path_ids: Vec<usize>, 
- 
-	pub delta:    f64,
-	pub is_parked: bool,
+#[derive(Debug)]
+pub struct VehicleBuilder<'a> {
+    pub speed: f64,
+    pub path_ids: Vec<usize>,
 
-	pub prev_id: usize,
-	pub next_id: usize,
-    //FIXME: Add Graph
+    pub delta: f64,
+    pub is_parked: bool,
+
+    pub prev_id: usize,
+    pub next_id: usize,
+
+    pub graph: &'a OSMGraph,
 }
 
-impl VehicleBuilder {
-    pub fn new() -> VehicleBuilder {
+impl<'a> VehicleBuilder<'a> {
+    pub fn new(graph: &'a OSMGraph) -> VehicleBuilder<'a> {
         VehicleBuilder {
-            ..Default::default()
+            speed: 0.0,
+            path_ids: Vec::new(),
+            delta: 0.0,
+            is_parked: false,
+            prev_id: 0,
+            next_id: 0,
+            graph,
         }
     }
 
-    pub fn with_speed(mut self, speed: f64) -> VehicleBuilder {
+    pub fn with_speed(mut self, speed: f64) -> VehicleBuilder<'a> {
         self.speed = speed;
         self
     }
 
-    pub fn with_path_ids(mut self, path_ids: Vec<usize>) -> VehicleBuilder {
+    pub fn with_path_ids(mut self, path_ids: Vec<usize>) -> VehicleBuilder<'a> {
         self.path_ids = path_ids;
         self
     }
 
-    pub fn with_graph(mut self, graph: &OSMGraph) -> VehicleBuilder {
-        todo!("not implemented");
+    // redundant?
+    pub fn with_graph(mut self, graph: &'a OSMGraph) -> VehicleBuilder<'a> {
+        self.graph = graph;
+        self
     }
 
-    // pub fn build(self) -> Vehicle 
+    pub fn with_prev_id(mut self, prev_id: usize) -> VehicleBuilder<'a> {
+        self.prev_id = prev_id;
+        self
+    }
+    pub fn with_next_id(mut self, next_id: usize) -> VehicleBuilder<'a> {
+        self.next_id = next_id;
+        self
+    }
+
+    pub fn with_delta(mut self, delta: f64) -> VehicleBuilder<'a> {
+        self.delta = delta;
+        self
+    }
+
+    pub fn with_is_parked(mut self, is_parked: bool) -> VehicleBuilder<'a> {
+        self.is_parked = is_parked;
+        self
+    }
+
+    pub fn from_bytes() {
+        todo!()
+    }
+
+    pub fn check(&self) -> Result<(), ()> {
+        todo!()
+    }
+
+    pub fn build(self) -> Vehicle {
+        todo!()
+    }
 }
 
-
-// impl VehicleBuilder  {
-
-//     pub fn new_vehicle_builder() -> VehicleBuilder {
-//         VehicleBuilder { speed: (), path_ids: (), delta: (), is_parked: (), prev_id: (), next_id: () }
-//     }
-
-//     pub fn with_speed(&self, speed: f64) -> VehicleBuilder {
-//         self.speed = speed;
-//         return VehicleBuilder { speed: (), path_ids: (), delta: (), is_parked: (), prev_id: (), next_id: (), graph: () }
-//     }
-
-//     pub fn with_path_ids(&self, path_ids: &[i32]) -> VehicleBuilder {
-//         self.path_ids = path_ids;
-//         return VehicleBuilder;
-//     }
-
-//     //TODO streetgraph reference
-//     pub fn with_graph(&self, graph: *const StreetGraph) -> VehicleBuilder {
-//         self.graph = graph;
-//         return VehicleBuilder;
-//     }
-    
-//     pub fn with_last_id(&self, last_id: i32) -> VehicleBuilder {
-//         self.prev_id = last_id;
-//         return VehicleBuilder;
-//     }
-    
-//     pub fn with_next_id(&self, next_id: i32) -> VehicleBuilder {
-//         self.next_id = next_id;
-//         return VehicleBuilder;
-//     }
-    
-//     pub fn with_delta(&self, delta: f64) -> VehicleBuilder {
-//         self.delta = delta;
-//         return VehicleBuilder;
-//     }
-    
-//     pub fn with_is_parked(&self, is_parked: bool) -> VehicleBuilder {
-//         self.is_parked = is_parked;
-//         return VehicleBuilder;
-//     }
-    
-//     pub fn from_json_bytes(&self, json_bytes: &[Byte]) -> Result<VehicleBuilder, io::Error> {
-       
-//         let v = UnmarshalVehicle(json_bytes)?;
-//         Ok(v);
-//         //TODO: cehck if error handling OK
-    
-//         self.speed = v.speed;
-//         self.path_ids = v.path_ids;
-//         self.delta = v.delta;
-//         self.is_parked = v.is_parked;
-//         self.prev_id = v.prev_id;
-//         self.next_id = v.next_id;
-    
-//         return v;
-//     }
-    
 //     //TODO rewrite errors
 //     fn  check(vb: VehicleBuilder) -> VehicleBuilder {
 //         if vb.speed == 0. {
@@ -128,7 +105,7 @@ impl VehicleBuilder {
 //         //TODO: error OK?
 //         let vb = vb.check()?;
 //         Ok(vb);
-    
+
 //         newAlphabet := nanoid.DefaultAlphabet
 //         newAlphabet = strings.Replace(newAlphabet, "_", "", -1)
 //         newAlphabet = strings.Replace(newAlphabet, "-", "", -1)
@@ -137,7 +114,7 @@ impl VehicleBuilder {
 //             log.Error().Err(err).Msg("Failed to generate vehicle ID.")
 //             return Vehicle{}, err
 //         }
-    
+
 //         vehicle := Vehicle{
 //             ID:                vid,
 //             PathIDs:           vb.pathIDs,
@@ -149,7 +126,7 @@ impl VehicleBuilder {
 //             DistanceRemaining: 0.0, // default value
 //             StreetGraph:       vb.graph,
 //         }
-    
+
 //         // ensure nextID is set
 //         id := vehicle.GetNextID(vehicle.PathIDs[0])
 //         if id == 0 {
@@ -161,9 +138,8 @@ impl VehicleBuilder {
 //         } else {
 //             vehicle.NextID = id
 //         }
-    
+
 //         return vehicle, nil
 //     }
-    
-// }
 
+// }

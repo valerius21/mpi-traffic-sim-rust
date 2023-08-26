@@ -8,13 +8,18 @@ use petgraph::{csr::NodeIndex, Directed, Graph};
 
 use super::rect::Rect;
 
-#[derive(Debug, Clone)]
+pub type GraphID = u32;
+
+#[derive(Debug, Default, Clone)]
 pub struct OSMGraph {
+    pub id: GraphID,
     pub graph: Graph<Vertex, Edge, Directed, usize>,
 }
 
+// A lot of those methods dance around the fact that the graph
+// uses it's own ID's / indcies and not the OSM ID's.
 pub trait GUtils {
-    fn new(osm_graph: GI) -> OSMGraph;
+    fn new(id: u32, osm_graph: GI) -> OSMGraph;
     fn get_graph(&self) -> &Graph<Vertex, Edge, Directed, usize>;
     fn get_vertices(&self) -> Vec<Vertex>;
     fn get_edges(&self) -> Vec<Edge>;
@@ -23,18 +28,17 @@ pub trait GUtils {
 }
 
 pub trait GPartition {
-    fn partition(&self, n: u32, i: u32) -> OSMGraph;
+    fn partition(&self, n: u32, i: u32, id: u32) -> OSMGraph;
 }
 
 impl GPartition for OSMGraph {
-    fn partition(&self, n: u32, i: u32) -> OSMGraph {
+    fn partition(&self, n: u32, i: u32, id: u32) -> OSMGraph {
         let vtx_lst = self.get_vertices();
         let rect = Rect::new(vtx_lst.clone());
-
         let x_delta: f64 = (rect.top_right.x - rect.bottom_left.x) / n as f64;
-
         let x_offset: f64 = x_delta * i as f64;
 
+        // new rect with offset
         let offset_bottom_right = Point {
             x: rect.bottom_left.x + x_offset,
             y: rect.bottom_left.y,
@@ -44,6 +48,7 @@ impl GPartition for OSMGraph {
             y: rect.top_right.y,
         };
 
+        // finish new rect with target_rect
         let mut target_rect = Rect {
             bottom_left: offset_bottom_right,
             top_right: offset_top_right,
@@ -52,6 +57,8 @@ impl GPartition for OSMGraph {
 
         let mut t_vrtx = target_rect.vertices.clone();
         t_vrtx.retain(|x| target_rect.in_rect(x.clone()));
+
+        // NOTE:Dancemove 💃
         let mut osmid_to_index_map = self.hashmap_osm_id_to_index();
 
         // filter for vertices in target rect
@@ -63,6 +70,7 @@ impl GPartition for OSMGraph {
             .map(|(_, index)| self.get_vertices()[*index].clone())
             .collect();
 
+        // NOTE: End Dancemove 💃
         let mut inside_edges = Vec::<_>::new();
         for e in self.graph.edge_indices() {
             let weight = self.graph.edge_weight(e).unwrap();
@@ -90,12 +98,16 @@ impl GPartition for OSMGraph {
             part_graph.add_edge(*from, *to, edge.clone());
         }
 
-        OSMGraph { graph: part_graph }
+        OSMGraph {
+            graph: part_graph,
+            id,
+        }
     }
 }
 
+// TODO: needs proper builder pattern to allow construction for part graph
 impl GUtils for OSMGraph {
-    fn new(osm_graph: GI) -> OSMGraph {
+    fn new(id: u32, osm_graph: GI) -> OSMGraph {
         let e_lst = osm_graph
             .edges
             .iter()
@@ -134,7 +146,7 @@ impl GUtils for OSMGraph {
             r_graph.add_edge(from.into(), to.into(), edge.clone());
         }
 
-        Self { graph: r_graph }
+        Self { graph: r_graph, id }
     }
 
     fn get_graph(&self) -> &Graph<Vertex, Edge, Directed, usize> {
