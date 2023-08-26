@@ -1,9 +1,12 @@
+mod error;
 mod graph;
 mod models;
+mod prelude;
 mod streets;
 mod utils;
 use crate::graph::graph::{GPartition, GUtils, OSMGraph};
 use crate::models::graph_input::GraphInput;
+use crate::prelude::*;
 use clap::Parser;
 
 /// Traffic Simulation with MPI
@@ -18,7 +21,7 @@ struct Args {
     partitions: usize,
 }
 
-fn main() {
+fn main() -> Result<()> {
     let args = Args::parse();
     let partitions = args.partitions; // =: WorldSize - 1
     let root_rank = 0;
@@ -45,4 +48,6 @@ fn main() {
             part.graph.edge_count()
         );
     }
+
+    Ok(())
 }

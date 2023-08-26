@@ -32,9 +32,9 @@ pub trait GPartition {
 }
 
 impl GPartition for OSMGraph {
-    fn partition(&self, n: u32, i: u32, id: u32) -> OSMGraph {
+    fn partition(&self, n: u32, i: u32, id: u32) -> crate::prelude::Result<OSMGraph> {
         let vtx_lst = self.get_vertices();
-        let rect = Rect::new(vtx_lst.clone());
+        let rect = Rect::new(vtx_lst.clone())?;
         let x_delta: f64 = (rect.top_right.x - rect.bottom_left.x) / n as f64;
         let x_offset: f64 = x_delta * i as f64;
 
@@ -98,10 +98,12 @@ impl GPartition for OSMGraph {
             part_graph.add_edge(*from, *to, edge.clone());
         }
 
-        OSMGraph {
+        let osm_g = OSMGraph {
             graph: part_graph,
             id,
-        }
+        };
+
+        Ok(osm_g)
     }
 }
 

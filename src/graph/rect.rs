@@ -14,7 +14,13 @@ pub(crate) struct Rect {
 }
 
 impl Rect {
-    pub fn new(vertices: Vec<Vertex>) -> Rect {
+    pub fn new(vertices: Vec<Vertex>) -> crate::prelude::Result<Rect> {
+        if vertices.is_empty() {
+            return Error::EmptyVector(
+                "No vertices set in graph. Use with_vertices() to set vertices.".to_string(),
+            );
+        }
+
         let mut rr = Rect {
             bottom_left: Point { x: 0.0, y: 0.0 },
             top_right: Point { x: 0.0, y: 0.0 },
@@ -22,7 +28,7 @@ impl Rect {
         };
         rr = rr.set_top_right_bottom_left();
 
-        rr
+        Ok(rr)
     }
 
     pub fn in_rect(&self, v: Vertex) -> bool {
@@ -37,11 +43,6 @@ impl Rect {
 
     pub fn set_top_right_bottom_left(mut self) -> Self {
         let vtx_lst = self.vertices.clone();
-        if vtx_lst.is_empty() {
-            // * TODO: Rust uses `log` crate commonly for logging. Ensure you add `log` crate in your Cargo.toml.
-            panic!("No vertices set in graph. Use with_vertices() to set vertices.");
-        }
-        let mut bot_x = 100.0;
         let mut bot_y = 100.0;
         let mut top_x = 0.0;
         let mut top_y = 0.0;
