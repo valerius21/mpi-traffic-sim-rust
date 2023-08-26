@@ -22,7 +22,7 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let partitions = 0; // =: WorldSize - 1
+    let partitions = 2; // =: WorldSize - 1
 
     // read input data for gprah
     let json = std::fs::read_to_string(args.path)?;
@@ -30,7 +30,7 @@ fn main() -> Result<()> {
 
     // bootstrap the root graph
     let root_rank: GraphID = 0;
-    let osm_graph = OSMGraph::new(root_rank, model.graph);
+    let osm_graph = OSMGraph::new(root_rank, model.graph)?;
 
     let my_graph = osm_graph.graph.clone();
 

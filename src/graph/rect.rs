@@ -17,7 +17,7 @@ pub(crate) struct Rect {
 impl Rect {
     pub fn new(vertices: Vec<Vertex>) -> Result<Rect> {
         if vertices.is_empty() {
-            return Err(Error::Generic(String::from("Empty Vector")));
+            return Err(Error::EmptyVector(String::from("Empty Vector")));
         }
 
         let mut rr = Rect {

@@ -1,9 +1,10 @@
 use crate::graph::graph::OSMGraph;
+use crate::prelude::Result;
 
 // * NOTE: use bincode https://github.com/bincode-org/bincode
 pub(crate) trait MpiMessageContent<T> {
-    fn to_bytes(data: T) -> Vec<u8>;
-    fn from_bytes(data: Vec<u8>) -> T;
+    fn to_bytes(data: T) -> Result<Vec<u8>>;
+    fn from_bytes(data: Vec<u8>) -> Result<T>;
 }
 
 pub(crate) trait GraphReference {
