@@ -21,7 +21,7 @@ pub struct OSMGraph {
 // A lot of those methods dance around the fact that the graph
 // uses it's own ID's / indcies and not the OSM ID's.
 pub trait GUtils {
-    fn new(id: GraphID, osm_graph: GI) -> Result<OSMGraph>;
+    fn new(osm_graph: GI) -> Result<OSMGraph>;
     fn get_graph(&self) -> &petgraph::prelude::GraphMap<OSMID, f64, Directed>;
     fn get_vertices(&self) -> Vec<Vertex>;
     fn get_edges(&self) -> Vec<Edge>;
@@ -100,7 +100,7 @@ impl GPartition for OSMGraph {
 
 // TODO: needs proper builder pattern to allow construction for part graph
 impl GUtils for OSMGraph {
-    fn new(id: GraphID, osm_graph: GI) -> Result<OSMGraph> {
+    fn new(osm_graph: GI) -> Result<OSMGraph> {
         let e_lst: Vec<(OSMID, OSMID, f64)> = osm_graph
             .edges
             .iter()

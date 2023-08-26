@@ -31,7 +31,7 @@ fn main() -> Result<()> {
 
     // bootstrap the root graph
     let root_rank: GraphID = 0;
-    let osm_graph = OSMGraph::new(root_rank, model.graph)?;
+    let osm_graph = OSMGraph::new(model.graph)?;
 
     let my_graph = osm_graph.graph.clone();
 
