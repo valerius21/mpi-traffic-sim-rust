@@ -1,10 +1,12 @@
+// #![allow(unused)] TODO: remove leter
+
 mod error;
 mod graph;
 mod models;
 mod prelude;
 mod streets;
 mod utils;
-use crate::graph::graph::{GPartition, GUtils, OSMGraph};
+use crate::graph::graph::{GPartition, GUtils, GraphID, OSMGraph};
 use crate::models::graph_input::GraphInput;
 use crate::prelude::*;
 use clap::Parser;
@@ -16,19 +18,20 @@ struct Args {
     /// Path of the JSON file for the Graph
     #[arg(short, long)]
     path: String,
-
-    #[arg(short, long, default_value = 0)]
-    partitions: usize,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let partitions = args.partitions; // =: WorldSize - 1
-    let root_rank = 0;
+    let partitions = 0; // =: WorldSize - 1
 
-    let json = std::fs::read_to_string(args.path).unwrap();
-    let model: GraphInput = serde_json::from_str(&json).unwrap();
+    // read input data for gprah
+    let json = std::fs::read_to_string(args.path)?;
+    let model: GraphInput = serde_json::from_str(&json).unwrap(); // FIXME: result handling
+
+    // bootstrap the root graph
+    let root_rank: GraphID = 0;
     let osm_graph = OSMGraph::new(root_rank, model.graph);
+
     let my_graph = osm_graph.graph.clone();
 
     println!(
@@ -40,7 +43,7 @@ fn main() -> Result<()> {
     println!("Making {} partitions", partitions);
 
     for i in 0..partitions {
-        let part = osm_graph.partition(partitions, i, i + 1);
+        let part = osm_graph.partition(partitions, i, i + 1)?;
         println!(
             "Part {} Size ({},{})",
             i,

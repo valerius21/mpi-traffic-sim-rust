@@ -1,24 +1,14 @@
 //! Main Crate Error
 
-#[derive(Debug, thiserror::Error)]
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("Generic {0}")]
+    /// For starter, to remove as code matures.
+    #[error("Generic error: {0}")]
     Generic(String),
+    /// For starter, to remove as code matures.
+    #[error("Static error: {0}")]
+    Static(&'static str),
 
     #[error(transparent)]
     IO(#[from] std::io::Error),
-
-    #[error(transparent)]
-    EmptyVector(#[from] EmptyVectorError),
 }
-
-#[derive(Debug, Clone)]
-pub struct EmptyVectorError;
-
-impl std::fmt::Display for EmptyVectorError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "The vector is empty")
-    }
-}
-
-impl std::error::Error for EmptyVectorError {}

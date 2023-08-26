@@ -13,7 +13,7 @@ pub struct Vehicle {
     is_parked: bool,
     distance_remaining: f64,
     marked_for_deletion: bool,
-    graph: GraphID, // TODO: use option
+    graph: GraphID, // TODO: use option / do they always have a reference?
 }
 
 impl MpiMessageContent<Vehicle> for Vehicle {

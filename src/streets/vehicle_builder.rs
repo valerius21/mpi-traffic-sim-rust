@@ -1,4 +1,5 @@
 use crate::{graph::graph::OSMGraph, models::vehicle::Vehicle};
+use nanoid::nanoid;
 use std::vec::Vec;
 
 #[derive(Debug)]
@@ -63,41 +64,48 @@ impl<'a> VehicleBuilder<'a> {
         self
     }
 
-    pub fn from_bytes() {
-        todo!()
+    pub fn check(&self) -> crate::prelude::Result<()> {
+        todo!();
+        if self.speed == 0.0 {}
+        if self.path_ids.len() < 2 {}
+        if self.prev_id < 1 {}
+
+        // TODO: more checks?
+
+        Ok(())
     }
 
-    pub fn check(&self) -> Result<(), ()> {
-        todo!()
+    pub fn from_bytes() -> Vehicle {
+        todo!("implement trait to vehicle builder?")
     }
 
-    pub fn build(self) -> Vehicle {
-        todo!()
+    pub fn build(self) -> crate::prelude::Result<Vehicle> {
+        let alphabet: [char; 16] = [
+            '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'a', 'b', 'c', 'd', 'e', 'f',
+        ];
+
+        let id = nanoid!(10, &alphabet);
+
+        self.check()?;
+
+        Ok(Vehicle {
+            id,
+            path_ids: self.path_ids,
+            speed: self.speed,
+            delta: self.delta,
+            next_id: self.next_id,
+            prev_id: self.prev_id,
+            is_parked: self.is_parked,
+            distance_remaining: 0.0,
+            marked_for_deletion: false,
+            graph: self.graph, // FIXME: Graph IDs?
+        })
     }
 }
 
 //     //TODO rewrite errors
 //     fn  check(vb: VehicleBuilder) -> VehicleBuilder {
-//         if vb.speed == 0. {
-//             err = errors.New("speed is not set");
-//             log.Error().Err(err).Msg("Failed to build vehicle.");
-//             return err
-//         }
-//         if vb.path_ids.len() < 2 {
-//             err = errors.New("path is not set");
-//             log.Error().Err(err).Msg("Failed to build vehicle.");
-//             return err
-//         }
-//         if vb.graph == nil {
-//             err = errors.New("graph is not set");
-//             log.Error().Err(err).Msg("Failed to build vehicle.");
-//             return err
-//         }
-//         if vb.prev_id < 1 {
-//             err = errors.New("prevID is not set");
-//             log.Error().Err(err).Msg("Failed to build vehicle.");
-//             return err
-//         }
+
 //         return vb;
 //     }
 

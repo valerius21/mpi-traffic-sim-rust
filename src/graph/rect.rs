@@ -1,4 +1,5 @@
 use crate::models::graph_input::Vertex;
+use crate::prelude::*;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Point {
@@ -14,11 +15,9 @@ pub(crate) struct Rect {
 }
 
 impl Rect {
-    pub fn new(vertices: Vec<Vertex>) -> crate::prelude::Result<Rect> {
+    pub fn new(vertices: Vec<Vertex>) -> Result<Rect> {
         if vertices.is_empty() {
-            return Error::EmptyVector(
-                "No vertices set in graph. Use with_vertices() to set vertices.".to_string(),
-            );
+            return Err(Error::Generic(String::from("Empty Vector")));
         }
 
         let mut rr = Rect {
@@ -43,7 +42,10 @@ impl Rect {
 
     pub fn set_top_right_bottom_left(mut self) -> Self {
         let vtx_lst = self.vertices.clone();
+
+        // set to oppisite sites
         let mut bot_y = 100.0;
+        let mut bot_x = 100.0;
         let mut top_x = 0.0;
         let mut top_y = 0.0;
 

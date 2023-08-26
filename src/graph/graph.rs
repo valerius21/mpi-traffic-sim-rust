@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     graph::rect::Point,
     models::graph_input::{Edge, Graph as GI, Vertex},
+    prelude::{Error, Result},
 };
 use petgraph::{csr::NodeIndex, Directed, Graph};
 
@@ -19,7 +20,7 @@ pub struct OSMGraph {
 // A lot of those methods dance around the fact that the graph
 // uses it's own ID's / indcies and not the OSM ID's.
 pub trait GUtils {
-    fn new(id: u32, osm_graph: GI) -> OSMGraph;
+    fn new(id: GraphID, osm_graph: GI) -> OSMGraph;
     fn get_graph(&self) -> &Graph<Vertex, Edge, Directed, usize>;
     fn get_vertices(&self) -> Vec<Vertex>;
     fn get_edges(&self) -> Vec<Edge>;
@@ -28,31 +29,34 @@ pub trait GUtils {
 }
 
 pub trait GPartition {
-    fn partition(&self, n: u32, i: u32, id: u32) -> OSMGraph;
+    // n => number of partitions
+    // i => index of partition
+    // id => GraphID
+    fn partition(&self, n: u32, i: u32, id: GraphID) -> Result<OSMGraph>;
 }
 
 impl GPartition for OSMGraph {
-    fn partition(&self, n: u32, i: u32, id: u32) -> crate::prelude::Result<OSMGraph> {
+    fn partition(&self, n: u32, i: u32, id: GraphID) -> Result<OSMGraph> {
         let vtx_lst = self.get_vertices();
         let rect = Rect::new(vtx_lst.clone())?;
         let x_delta: f64 = (rect.top_right.x - rect.bottom_left.x) / n as f64;
         let x_offset: f64 = x_delta * i as f64;
 
         // new rect with offset
-        let offset_bottom_right = Point {
+        let offset_bottom_left = Point {
             x: rect.bottom_left.x + x_offset,
             y: rect.bottom_left.y,
         };
         let offset_top_right = Point {
-            x: offset_bottom_right.x + x_delta,
+            x: offset_bottom_left.x + x_delta,
             y: rect.top_right.y,
         };
 
         // finish new rect with target_rect
         let mut target_rect = Rect {
-            bottom_left: offset_bottom_right,
+            bottom_left: offset_bottom_left,
             top_right: offset_top_right,
-            vertices: vtx_lst,
+            vertices: vtx_lst, // temporary clone all verticies from the struct
         };
 
         let mut t_vrtx = target_rect.vertices.clone();
@@ -73,12 +77,17 @@ impl GPartition for OSMGraph {
         // NOTE: End Dancemove 💃
         let mut inside_edges = Vec::<_>::new();
         for e in self.graph.edge_indices() {
-            let weight = self.graph.edge_weight(e).unwrap();
+            let weight = self.graph.edge_weight(e);
 
-            if osmid_to_index_map.contains_key(&weight.from)
-                && osmid_to_index_map.contains_key(&weight.to)
-            {
-                inside_edges.push(weight.clone());
+            match self.graph.edge_weight(e) {
+                Some(weight) => {
+                    if osmid_to_index_map.contains_key(&weight.from)
+                        && osmid_to_index_map.contains_key(&weight.to)
+                    {
+                        inside_edges.push(weight.clone());
+                    }
+                }
+                None => return Err(Error::Generic(String::from("Edge weight not found"))),
             }
         }
 
@@ -93,9 +102,16 @@ impl GPartition for OSMGraph {
         }
 
         for edge in inside_edges.iter() {
-            let from = insertion_map.get(&edge.from).unwrap();
-            let to = insertion_map.get(&edge.to).unwrap();
-            part_graph.add_edge(*from, *to, edge.clone());
+            let from = insertion_map.get(&edge.from);
+            let to = insertion_map.get(&edge.to);
+
+            match insertion_map.get(&edge.from) {
+                Some(from) => match insertion_map.get(&edge.to) {
+                    Some(to) => part_graph.add_edge(*from, *to, edge.clone()),
+                    None => panic!("Edge to not found"),
+                },
+                None => panic!("Edge from not found"),
+            };
         }
 
         let osm_g = OSMGraph {
@@ -109,7 +125,7 @@ impl GPartition for OSMGraph {
 
 // TODO: needs proper builder pattern to allow construction for part graph
 impl GUtils for OSMGraph {
-    fn new(id: u32, osm_graph: GI) -> OSMGraph {
+    fn new(id: GraphID, osm_graph: GI) -> OSMGraph {
         let e_lst = osm_graph
             .edges
             .iter()
@@ -140,11 +156,16 @@ impl GUtils for OSMGraph {
         }
 
         for edge in osm_graph.edges.iter() {
-            let from = vertex_vec
-                .iter()
-                .position(|x| x.osm_id == edge.from)
-                .unwrap() as NodeIndex<usize>;
-            let to = vertex_vec.iter().position(|x| x.osm_id == edge.to).unwrap();
+            let from = match vertex_vec.iter().position(|x| x.osm_id == edge.from) {
+                Some(f) => f as NodeIndex<usize>,
+                None => panic!("Vertex not found"),
+            };
+
+            let to = match vertex_vec.iter().position(|x| x.osm_id == edge.to) {
+                Some(t) => t as NodeIndex<usize>,
+                None => panic!("Vertex not found"),
+            };
+
             r_graph.add_edge(from.into(), to.into(), edge.clone());
         }
 
