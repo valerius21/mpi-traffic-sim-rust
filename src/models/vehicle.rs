@@ -39,10 +39,10 @@ impl Moveable for Vehicle {
 
         let gg = osm_graph.get_graph();
 
-        let edge = match gg.find_edge(self.prev_id, self.next_id) {
-            Some(edge) => edge,
-            None => panic!("edge not found in graph"),
-        };
+        // let edge = match gg.find_edge(self.prev_id, self.next_id) {
+        //     Some(edge) => edge,
+        //     None => panic!("edge not found in graph"),
+        // };
 
         todo!()
     }

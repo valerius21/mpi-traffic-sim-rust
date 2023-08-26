@@ -5,23 +5,24 @@ use crate::{
     models::graph_input::{Edge, Graph as GI, Vertex},
     prelude::{Error, Result},
 };
-use petgraph::{csr::NodeIndex, Directed, Graph};
+use petgraph::{csr::NodeIndex, prelude::DiGraphMap, Directed, Graph};
 
 use super::rect::Rect;
 
 pub type GraphID = u32;
+pub type OSMID = usize;
 
 #[derive(Debug, Default, Clone)]
 pub struct OSMGraph {
-    pub id: GraphID,
-    pub graph: Graph<Vertex, Edge, Directed, usize>,
+    osm: GI,
+    pub graph: petgraph::prelude::GraphMap<OSMID, f64, Directed>,
 }
 
 // A lot of those methods dance around the fact that the graph
 // uses it's own ID's / indcies and not the OSM ID's.
 pub trait GUtils {
     fn new(id: GraphID, osm_graph: GI) -> Result<OSMGraph>;
-    fn get_graph(&self) -> &Graph<Vertex, Edge, Directed, usize>;
+    fn get_graph(&self) -> &petgraph::prelude::GraphMap<OSMID, f64, Directed>;
     fn get_vertices(&self) -> Vec<Vertex>;
     fn get_edges(&self) -> Vec<Edge>;
     fn hashmap_osm_id_to_index(&self) -> HashMap<usize, usize>;
@@ -32,11 +33,11 @@ pub trait GPartition {
     // n => number of partitions
     // i => index of partition
     // id => GraphID
-    fn partition(&self, n: u32, i: u32, id: GraphID) -> Result<OSMGraph>;
+    fn partition(&self, n: usize, i: usize) -> Result<OSMGraph>;
 }
 
 impl GPartition for OSMGraph {
-    fn partition(&self, n: u32, i: u32, id: GraphID) -> Result<OSMGraph> {
+    fn partition(&self, n: usize, i: usize) -> Result<OSMGraph> {
         let vtx_lst = self.get_vertices();
         let rect = Rect::new(vtx_lst.clone())?;
         let x_delta: f64 = (rect.top_right.x - rect.bottom_left.x) / n as f64;
@@ -59,6 +60,7 @@ impl GPartition for OSMGraph {
             vertices: vtx_lst, // temporary clone all verticies from the struct
         };
 
+        // filter for vertices in target rect
         let mut t_vrtx = target_rect.vertices.clone();
         t_vrtx.retain(|x| target_rect.in_rect(x.clone()));
 
@@ -74,51 +76,22 @@ impl GPartition for OSMGraph {
             .map(|(_, index)| self.get_vertices()[*index].clone())
             .collect();
 
-        // NOTE: End Dancemove 💃
-        let mut inside_edges = Vec::<_>::new();
-        for e in self.graph.edge_indices() {
-            let weight = match self.graph.edge_weight(e) {
-                Some(weight) => weight,
-                None => {
-                    return Err(Error::NoWeightFound(String::from(
-                        "No Edge Weight for Partitioning",
-                    )))
-                }
-            };
+        let verticies = target_rect
+            .vertices
+            .clone()
+            .into_iter()
+            .map(|v| v.osm_id)
+            .collect::<HashSet<OSMID>>();
+        let inside_edges = self.graph.all_edges().filter(|e: &(OSMID, OSMID, &f64)| {
+            verticies.contains(&e.0) && verticies.contains(&e.1)
+        });
 
-            if osmid_to_index_map.contains_key(&weight.from)
-                && osmid_to_index_map.contains_key(&weight.to)
-            {
-                inside_edges.push(weight.clone());
-            }
-        }
-
-        let mut part_graph = Graph::<Vertex, Edge, Directed, usize>::with_capacity(
-            target_rect.vertices.len(),
-            inside_edges.len(),
-        );
-
-        let mut insertion_map = HashMap::<usize, _>::new();
-        for vertex in target_rect.vertices.iter() {
-            insertion_map.insert(vertex.osm_id, part_graph.add_node(vertex.clone()));
-        }
-
-        for edge in inside_edges.iter() {
-            let from = match insertion_map.get(&edge.from) {
-                Some(f) => *f,
-                None => Err(Error::NoInnerEdge(String::from("No inner edge")))?,
-            };
-            let to = match insertion_map.get(&edge.to) {
-                Some(t) => *t,
-                None => Err(Error::NoInnerEdge(String::from("No inner edge")))?,
-            };
-
-            part_graph.add_edge(from, to, edge.clone());
-        }
+        let child_graph: petgraph::prelude::GraphMap<OSMID, f64, Directed> =
+            DiGraphMap::from_edges(inside_edges);
 
         let osm_g = OSMGraph {
-            graph: part_graph,
-            id,
+            graph: child_graph,
+            osm: self.osm.clone(),
         };
 
         Ok(osm_g)
@@ -128,72 +101,31 @@ impl GPartition for OSMGraph {
 // TODO: needs proper builder pattern to allow construction for part graph
 impl GUtils for OSMGraph {
     fn new(id: GraphID, osm_graph: GI) -> Result<OSMGraph> {
-        let e_lst = osm_graph
+        let e_lst: Vec<(OSMID, OSMID, f64)> = osm_graph
             .edges
             .iter()
-            .map(|edge| (edge.from, edge.to))
-            .collect::<Vec<(usize, usize)>>();
+            .map(|edge| (edge.from, edge.to, edge.length))
+            .collect::<Vec<(OSMID, OSMID, f64)>>();
 
-        let mut vertex_vec = Vec::<Vertex>::new();
+        let digraphmap: petgraph::prelude::GraphMap<OSMID, f64, Directed> =
+            DiGraphMap::from_edges(&e_lst);
 
-        for edge in osm_graph.edges.iter() {
-            for vertex in osm_graph.vertices.iter() {
-                if vertex.osm_id == edge.from {
-                    vertex_vec.push(vertex.clone());
-                }
-                if vertex.osm_id == edge.to {
-                    vertex_vec.push(vertex.clone());
-                }
-            }
-        }
-
-        let mut vtx = HashSet::new();
-        vertex_vec.retain(|x| vtx.insert(x.osm_id));
-
-        let mut r_graph =
-            Graph::<Vertex, Edge, Directed, usize>::with_capacity(vertex_vec.len(), e_lst.len());
-
-        for vertex in vertex_vec.iter() {
-            r_graph.add_node(vertex.clone());
-        }
-
-        for edge in osm_graph.edges.iter() {
-            let from = match vertex_vec.iter().position(|x| x.osm_id == edge.from) {
-                Some(f) => f as NodeIndex<usize>,
-                None => Err(Error::ElementNotInVector(String::from(
-                    "Vertex vector does not include 'from'",
-                )))?,
-            };
-
-            let to = match vertex_vec.iter().position(|x| x.osm_id == edge.to) {
-                Some(t) => t as NodeIndex<usize>,
-                None => Err(Error::ElementNotInVector(String::from(
-                    "Vertex vector does not include 'to'",
-                )))?,
-            };
-
-            r_graph.add_edge(from.into(), to.into(), edge.clone());
-        }
-
-        Ok(Self { graph: r_graph, id })
+        Ok(Self {
+            graph: digraphmap,
+            osm: osm_graph,
+        })
     }
 
-    fn get_graph(&self) -> &Graph<Vertex, Edge, Directed, usize> {
+    fn get_graph(&self) -> &petgraph::prelude::GraphMap<OSMID, f64, Directed> {
         &self.graph
     }
 
     fn get_vertices(&self) -> Vec<Vertex> {
-        self.get_graph()
-            .node_indices()
-            .map(|x| self.get_graph()[x].clone())
-            .collect()
+        self.osm.vertices.clone()
     }
 
     fn get_edges(&self) -> Vec<Edge> {
-        self.get_graph()
-            .edge_indices()
-            .map(|x| self.get_graph()[x].clone())
-            .collect()
+        self.osm.edges.clone()
     }
 
     fn hashmap_osm_id_to_index(&self) -> HashMap<usize, usize> {

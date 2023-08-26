@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -7,7 +9,7 @@ pub struct GraphInput {
     pub graph: Graph,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Graph {
     pub vertices: Vec<Vertex>,
     pub edges: Vec<Edge>,
@@ -28,4 +30,18 @@ pub struct Vertex {
     pub x: f64,
     pub y: f64,
     pub osm_id: usize,
+}
+
+impl std::cmp::PartialEq for Vertex {
+    fn eq(&self, other: &Self) -> bool {
+        self.osm_id == other.osm_id
+    }
+}
+
+impl std::cmp::Eq for Vertex {}
+
+impl Hash for Vertex {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.osm_id.hash(state);
+    }
 }

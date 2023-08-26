@@ -10,6 +10,7 @@ use crate::graph::graph::{GPartition, GUtils, GraphID, OSMGraph};
 use crate::models::graph_input::GraphInput;
 use crate::prelude::*;
 use clap::Parser;
+use petgraph::dot::Dot;
 
 /// Traffic Simulation with MPI
 #[derive(Parser, Debug)]
@@ -43,7 +44,7 @@ fn main() -> Result<()> {
     println!("Making {} partitions", partitions);
 
     for i in 0..partitions {
-        let part = osm_graph.partition(partitions, i, i + 1)?;
+        let part = osm_graph.partition(partitions, i)?;
         println!(
             "Part {} Size ({},{})",
             i,
@@ -52,5 +53,6 @@ fn main() -> Result<()> {
         );
     }
 
+    // println!("{:?}", Dot::with_config(&my_graph, &[]));
     Ok(())
 }
