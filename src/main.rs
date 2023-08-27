@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use crate::graph::graph::{GPartition, GUtils, OSMGraph};
 use crate::mmpi::*;
 use crate::models::graph_input::GraphInput;
-use crate::models::vehicle::Vehicle;
+use crate::models::vehicle::{Moveable, Vehicle};
 use crate::prelude::*;
 use crate::utils::MpiMessageContent;
 use clap::Parser;
@@ -72,6 +72,7 @@ async fn main() -> Result<()> {
         0 => {
             log::debug!("[{}] Creating NodeID->Rank mapping", rank);
             // create map with nodeID->rank mapping
+            // ! FIXME it does not contain all nodes
             let mut node_to_rank = HashMap::new();
 
             for r in 1..size {
@@ -89,27 +90,20 @@ async fn main() -> Result<()> {
             // send vehicles
             while vehicle_counter < number_of_vehicles {
                 let v = Vehicle::generate_default(&my_graph).unwrap();
-                let node = v.prev_id;
-                let r = match node_to_rank.get(&node) {
-                    Some(r) => r.clone(),
-                    None => {
-                        log::warn!("[{}] No rank found for node {}", rank, node);
+
+                match map_vehicle_to_rank(v, &node_to_rank, rank, world) {
+                    Ok(_) => {}
+                    Err(_) => {
+                        log::warn!("[{}] Failed to send vehicle", rank);
                         continue;
                     }
                 };
-
-                let vb = Vehicle::to_bytes(v).unwrap();
-
-                world
-                    .process_at_rank(r)
-                    .send_with_tag(&vb[..], ROOT_LEAF_VEHICLE);
-                log::debug!("[{}] Sent vehicle to rank {}", rank, r);
                 vehicle_counter += 1;
             }
             log::debug!("[{}] Sent {} vehicles to ranks", rank, vehicle_counter,);
             log::debug!("[{}] Listening for incoming connections", rank);
             loop {
-                let (_msg, status) = world.any_process().receive_vec::<u8>();
+                let (msg, status) = world.any_process().receive_vec::<u8>();
                 match status.tag() {
                     LEAF_ROOT_VEHICLE => {
                         log::debug!(
@@ -117,10 +111,19 @@ async fn main() -> Result<()> {
                             rank,
                             status.source_rank()
                         );
-                        todo!();
+                        let v = Vehicle::from_bytes(msg).unwrap();
+                        match map_vehicle_to_rank(v, &node_to_rank, rank, world) {
+                            Ok(_) => {}
+                            Err(_) => {
+                                log::warn!("[{}] Failed to send vehicle after receive", rank);
+                                // ! FIXME vehicles get lost due to hashmap errors above
+                                continue;
+                            }
+                        }
                     }
                     EDGE_LENGTH_REQUEST => {
-                        let el_req = EdgeLengthRequest::from_bytes(_msg).unwrap();
+                        log::debug!("Received edge length request");
+                        let el_req = EdgeLengthRequest::from_bytes(msg).unwrap();
                         let el = my_graph.edges(el_req.from).find(|e| e.1 == el_req.to);
                         match el {
                             Some(el) => {
@@ -130,12 +133,17 @@ async fn main() -> Result<()> {
                                     .send_with_tag(&v[..], EDGE_LENGTH_RESPONSE);
                             }
                             None => {
-                                log::error!("[{}] Received unknown message with unknown tag", rank);
+                                log::error!("[{}] Emtpy edge length -> {:#?}", rank, el_req);
                             }
                         }
                     }
                     _ => {
-                        log::error!("[{}] Received unknown message with unknown tag", rank);
+                        log::error!(
+                            "[{}] Received unknown message with unknown tag -> {} -> {:#?}",
+                            rank,
+                            status.tag(),
+                            msg
+                        );
                     }
                 }
             }
@@ -165,6 +173,12 @@ async fn main() -> Result<()> {
                             v.id
                         );
 
+                        if v.next_id == 0 || v.is_parked {
+                            // vehicle is done
+                            log::info!("[{}] Vehicle {} is done driving", rank, v.id);
+                            continue;
+                        }
+
                         // II.3
                         v.marked_for_deletion = false;
 
@@ -186,7 +200,24 @@ async fn main() -> Result<()> {
                         // II.5
                         v.delta += el_msg[0];
                         // drive vehicle
-                        todo!();
+                        v.prev_id = v.get_next_node(v.prev_id, &part);
+                        v.next_id = v.get_next_node(v.prev_id, &part);
+
+                        loop {
+                            if v.is_parked {
+                                // v is done
+                                log::info!("[{}] Vehicle {} is done driving", rank, v.id);
+                                break;
+                            } else if v.marked_for_deletion {
+                                // send vehicle to root
+                                world.process_at_rank(0).send_with_tag(
+                                    &Vehicle::to_bytes(v).unwrap()[..],
+                                    LEAF_ROOT_VEHICLE,
+                                );
+                                break;
+                            }
+                            v.step(&part);
+                        }
                     }
                     _ => {
                         log::error!("[{}] Received unknown message with unknown tag", rank);
