@@ -1,5 +1,5 @@
+use crate::models::vehicle::Vehicle;
 use crate::prelude::*;
-use crate::{graph::graph::OSMGraph, models::vehicle::Vehicle};
 use nanoid::nanoid;
 use std::vec::Vec;
 
@@ -75,10 +75,6 @@ impl VehicleBuilder {
         }
 
         Ok(())
-    }
-
-    pub fn from_bytes() -> Vehicle {
-        todo!("implement trait to vehicle builder?")
     }
 
     pub fn build(&mut self) -> crate::prelude::Result<Vehicle> {

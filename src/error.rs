@@ -15,15 +15,14 @@ pub enum Error {
     #[error("Vector is empty")]
     EmptyVector(String),
 
-    #[error("No Weight found for: {0}")]
-    NoWeightFound(String),
+    // #[error("No Weight found for: {0}")]
+    // NoWeightFound(String),
 
-    #[error("No inner Edge")]
-    NoInnerEdge(String),
+    // #[error("No inner Edge")]
+    // NoInnerEdge(String),
 
-    #[error("Element not in Vector: {0}")]
-    ElementNotInVector(String),
-
+    // #[error("Element not in Vector: {0}")]
+    // ElementNotInVector(String),
     #[error("bincode error: {0}")]
     Bincode(#[from] bincode::Error),
 }

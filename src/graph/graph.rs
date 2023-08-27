@@ -3,13 +3,12 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     graph::rect::Point,
     models::graph_input::{Edge, Graph as GI, Vertex},
-    prelude::{Error, Result},
+    prelude::Result,
 };
-use petgraph::{csr::NodeIndex, prelude::DiGraphMap, Directed, Graph};
+use petgraph::{prelude::DiGraphMap, Directed};
 
 use super::rect::Rect;
 
-pub type GraphID = u32;
 pub type OSMID = usize;
 
 #[derive(Debug, Default, Clone)]
