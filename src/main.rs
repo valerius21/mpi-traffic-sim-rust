@@ -27,7 +27,8 @@ struct Args {
     path: String,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Args::parse();
     let partitions = 2; // =: WorldSize - 1
 
@@ -36,7 +37,7 @@ fn main() -> Result<()> {
     let model: GraphInput = serde_json::from_str(&json).unwrap(); // FIXME: result handling
 
     // bootstrap the root graph
-    let root_rank: GraphID = 0;
+    // let root_rank: GraphID = 0;
     let osm_graph = OSMGraph::new(model.graph)?;
 
     let my_graph = osm_graph.graph.clone();
@@ -59,12 +60,27 @@ fn main() -> Result<()> {
         );
     }
 
-    // println!("{:?}", Dot::with_config(&my_graph, &[]));
+    // * NOTE: tokio has it's own scheduler
+    let mut handles = vec![];
 
-    for _ in 0..=100 {
-        let mut v = Vehicle::generate_default(&my_graph)?;
-        v.drive(&osm_graph);
-        println!("{:#?} finished driving", v.id);
+    for _ in 0..100 {
+        let osm_graph_clone = osm_graph.clone();
+        let my_graph_clone = my_graph.clone();
+
+        // FIXME: error handling
+        let handle = tokio::spawn(async move {
+            let mut v = Vehicle::generate_default(&my_graph_clone).unwrap();
+            v.drive(&osm_graph_clone);
+            println!("[{:#?}] finished driving", v);
+            // Ok::<(), Box<dyn std::error::Error>>(())
+        });
+
+        handles.push(handle);
+    }
+
+    // Await all tasks to complete
+    for handle in handles {
+        handle.await.unwrap();
     }
     Ok(())
 }
