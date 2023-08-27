@@ -13,7 +13,6 @@ pub struct VehicleBuilder {
 
     pub prev_id: usize,
     pub next_id: usize,
-    // pub graph: &'a OSMGraph,
 }
 
 impl VehicleBuilder {
@@ -64,7 +63,7 @@ impl VehicleBuilder {
         self
     }
 
-    pub fn check(&self) -> crate::prelude::Result<()> {
+    fn check(&mut self) -> crate::prelude::Result<()> {
         if self.speed == 0.0 {
             return Err(Error::Generic(String::from("Speed is 0.0")));
         }
@@ -82,7 +81,7 @@ impl VehicleBuilder {
         todo!("implement trait to vehicle builder?")
     }
 
-    pub fn build(self) -> crate::prelude::Result<Vehicle> {
+    pub fn build(&mut self) -> crate::prelude::Result<Vehicle> {
         let alphabet: [char; 16] = [
             '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'a', 'b', 'c', 'd', 'e', 'f',
         ];
@@ -93,7 +92,7 @@ impl VehicleBuilder {
 
         Ok(Vehicle {
             id,
-            path_ids: self.path_ids,
+            path_ids: self.path_ids.clone(),
             speed: self.speed,
             delta: self.delta,
             next_id: self.next_id,

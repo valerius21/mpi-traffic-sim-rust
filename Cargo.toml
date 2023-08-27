@@ -11,6 +11,7 @@ clap = { version = "4.3.23", features = ["derive"] }
 mpi = { version = "0.6", features = ["user-operations", "derive"] }
 thiserror = "^1.0.47"
 nanoid = "0.4.0"
+rand = "0.8"
 # Serialization / Deserialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "^1.0"

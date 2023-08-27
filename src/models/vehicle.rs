@@ -1,7 +1,11 @@
 use crate::graph::graph::GUtils;
-use crate::utils::MpiMessageContent;
+use crate::streets::vehicle_builder::VehicleBuilder;
+use crate::utils::{get_random_vector_element, MpiMessageContent};
 use crate::{graph::graph::OSMGraph, prelude::*};
 use bincode::{deserialize, serialize};
+use petgraph::algo::astar;
+use petgraph::prelude::GraphMap;
+use petgraph::Directed;
 use serde::{Deserialize, Serialize};
 
 type OSMID = usize;
@@ -19,7 +23,7 @@ pub struct Vehicle {
     pub marked_for_deletion: bool,
 }
 
-trait Moveable {
+pub trait Moveable {
     fn drive(&mut self, graph: &OSMGraph);
     fn step(&mut self, graph: &OSMGraph);
     fn get_next_node(&mut self, id: OSMID, graph: &OSMGraph) -> OSMID;
@@ -129,5 +133,54 @@ impl MpiMessageContent<Vehicle> for Vehicle {
             Ok(arr) => Ok(arr),
             Err(err) => Err(Error::Bincode(err)),
         }
+    }
+}
+
+impl Vehicle {
+    pub fn generate_default(graph: &GraphMap<usize, f64, Directed>) -> Result<Vehicle> {
+        let vtx: Vec<_> = graph.nodes().collect();
+        let mut path = None;
+        let mut path_length = 0;
+
+        while path.is_none() || path_length < 2 {
+            let start = match get_random_vector_element(&vtx) {
+                Some(v) => v.clone(),
+                None => Err(Error::Generic(String::from("No random vertex found")))?,
+            };
+
+            let end = match get_random_vector_element(&vtx) {
+                Some(v) => v.clone(),
+                None => Err(Error::Generic(String::from("No random vertex found")))?,
+            };
+
+            path = astar(
+                &graph,
+                start,
+                |finish| finish == end,
+                |e| e.2.clone(),
+                |_| 0.,
+            );
+
+            path_length = match path.as_ref() {
+                Some(p) => p.1.len(),
+                None => 0,
+            };
+        }
+
+        let path = match path {
+            Some(p) => p.1,
+            None => Err(Error::Generic(String::from("No path found")))?,
+        };
+
+        let veh = VehicleBuilder::new()
+            .with_delta(0.0)
+            .with_delta(0.0)
+            .with_is_parked(false)
+            .with_speed(5.5)
+            .with_path_ids(path.clone())
+            .with_prev_id(path[0])
+            .with_next_id(path[1])
+            .build()?;
+        Ok(veh)
     }
 }

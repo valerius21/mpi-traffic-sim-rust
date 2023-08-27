@@ -1,3 +1,5 @@
+use rand::Rng;
+
 use crate::graph::graph::OSMGraph;
 use crate::prelude::Result;
 
@@ -10,4 +12,10 @@ pub(crate) trait MpiMessageContent<T> {
 pub(crate) trait GraphReference {
     fn set_graph_ref(graph: &OSMGraph);
     fn get_graph_ref() -> &'static OSMGraph;
+}
+
+pub fn get_random_vector_element<T>(v: &Vec<T>) -> Option<&T> {
+    let mut rng = rand::thread_rng();
+    let random_index = rng.gen_range(0..v.len());
+    v.get(random_index)
 }

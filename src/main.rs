@@ -1,4 +1,6 @@
 // #![allow(unused)] TODO: remove leter
+extern crate rand;
+use rand::Rng;
 
 mod error;
 mod graph;
@@ -8,8 +10,12 @@ mod streets;
 mod utils;
 use crate::graph::graph::{GPartition, GUtils, GraphID, OSMGraph};
 use crate::models::graph_input::GraphInput;
+use crate::models::vehicle::{Moveable, Vehicle};
 use crate::prelude::*;
+use crate::streets::vehicle_builder::VehicleBuilder;
+use crate::utils::get_random_vector_element;
 use clap::Parser;
+use petgraph::algo::astar;
 use petgraph::dot::Dot;
 
 /// Traffic Simulation with MPI
@@ -54,5 +60,11 @@ fn main() -> Result<()> {
     }
 
     // println!("{:?}", Dot::with_config(&my_graph, &[]));
+
+    for _ in 0..=100 {
+        let mut v = Vehicle::generate_default(&my_graph)?;
+        v.drive(&osm_graph);
+        println!("{:#?} finished driving", v.id);
+    }
     Ok(())
 }
