@@ -21,6 +21,12 @@ pub const EDGE_LENGTH_REQUEST: i32 = 0x03;
 // Root responds to leaf with edge length
 pub const EDGE_LENGTH_RESPONSE: i32 = 0x04;
 
+// Leaf to Root vehicle finishng notification
+pub const LEAF_ROOT_VEHICLE_FINISH: i32 = 0x05;
+
+// Root to leaf program termination notification
+pub const ROOT_LEAF_TERMINATE: i32 = 0x06;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EdgeLengthRequest {
     pub from: OSMID,

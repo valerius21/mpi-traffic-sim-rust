@@ -38,17 +38,34 @@ struct Args {
     /// Set Debug Logging
     #[arg(short, long, default_value = "false")]
     debug: bool,
+
+    /// Error rate for the simulation
+    #[arg(short, long, default_value = "0.0")]
+    error_rate: f64,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
     let number_of_vehicles = args.number_of_vehicles;
+    let error_rate = args.error_rate;
     if args.debug {
         simple_logger::init_with_level(Level::Debug).unwrap();
     } else {
         simple_logger::init_with_level(Level::Info).unwrap();
     }
+
+    // Avoiding overflows
+    const MAX_NUMBER_OF_VEHICLES: usize = usize::MAX / 2;
+    if number_of_vehicles > MAX_NUMBER_OF_VEHICLES {
+        panic!(
+            "Number of vehicles must be smaller than {}, but is {}!",
+            MAX_NUMBER_OF_VEHICLES, number_of_vehicles
+        );
+    }
+
+    // finishing threshold
+    let finishing_threshold = ((number_of_vehicles as f64) * (1.0 - error_rate)) as usize;
 
     // mpi setup
     let universe = mpi::initialize().unwrap();
@@ -80,6 +97,7 @@ async fn main() -> Result<()> {
     log::info!("[{}] Making {} partition(s)", rank, partitions);
     match rank {
         0 => {
+            let mut finished_vehicle_counter = 0;
             log::debug!("[{}] Creating NodeID->Rank mapping", rank);
             // create map with nodeID->rank mapping
             let mut node_to_rank = HashMap::new();
@@ -163,23 +181,22 @@ async fn main() -> Result<()> {
                         world
                             .process_at_rank(status.source_rank())
                             .send_with_tag(&v[..], EDGE_LENGTH_RESPONSE);
-
-                        // match el {
-                        //     Some(el) => {
-                        //         let v = vec![el.2.clone()];
-                        //         world
-                        //             .process_at_rank(status.source_rank())
-                        //             .send_with_tag(&v[..], EDGE_LENGTH_RESPONSE);
-                        //     }
-                        //     None => {
-                        //         log::debug!(
-                        //             "[{}] #Edges: {:?}",
-                        //             rank,
-                        //             my_graph.all_edges().count()
-                        //         );
-                        //         log::error!("[{}] Emtpy edge length -> {:#?}", rank, el_req);
-                        //     }
-                        // }
+                    }
+                    LEAF_ROOT_VEHICLE_FINISH => {
+                        finished_vehicle_counter += 1;
+                        if finished_vehicle_counter >= finishing_threshold {
+                            log::info!(
+                                "[{}] Finished {} vehicles, terminating",
+                                rank,
+                                finished_vehicle_counter
+                            );
+                            for r in 1..size {
+                                world
+                                    .process_at_rank(r)
+                                    .send_with_tag(&[1], ROOT_LEAF_TERMINATE);
+                            }
+                            break;
+                        }
                     }
                     _ => {
                         log::error!(
@@ -219,7 +236,7 @@ async fn main() -> Result<()> {
 
                         if v.is_parked || v.prev_id == v.next_id {
                             // vehicle is done
-                            log::info!("[{}] Vehicle {} is done driving", rank, v.id);
+                            log::info!("[{}] - 1 Vehicle {} is done driving", rank, v.id);
                             continue;
                         }
 
@@ -261,7 +278,12 @@ async fn main() -> Result<()> {
                         loop {
                             if v.is_parked {
                                 // v is done
-                                log::info!("[{}] Vehicle {} is done driving", rank, v.id);
+                                log::info!("[{}] - 2 Vehicle {} is done driving", rank, v.id);
+                                // create buffer containing the number 1
+                                let buf = vec![1];
+                                world
+                                    .process_at_rank(0)
+                                    .send_with_tag(&buf[..], LEAF_ROOT_VEHICLE_FINISH);
                                 break;
                             } else if v.marked_for_deletion {
                                 log::debug!("[{}] Sending vehicle {} to root", rank, v.id);
@@ -274,6 +296,10 @@ async fn main() -> Result<()> {
                             }
                             v.step(&part);
                         }
+                    }
+                    ROOT_LEAF_TERMINATE => {
+                        log::info!("[{}] Received termination notification", rank);
+                        break;
                     }
                     _ => {
                         log::error!("[{}] Received unknown message with unknown tag", rank);

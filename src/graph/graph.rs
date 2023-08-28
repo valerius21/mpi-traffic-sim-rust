@@ -34,10 +34,6 @@ pub trait GPartition {
     // id => GraphID
     fn partition(&self, n: usize, i: usize) -> Result<OSMGraph>;
 }
-// The tolerance for floating point comparisons for the rectangle X
-// The rectangle misses some nodes, because of input data inconsistencies in precision
-// TODO:
-// const TOLERANCE: f64 = 0.0001;
 
 fn determine_rects(target_graph: &OSMGraph, n: usize, i: usize) -> Result<OSMGraph> {
     let vtx_lst = target_graph.get_vertices();

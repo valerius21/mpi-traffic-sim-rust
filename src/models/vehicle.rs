@@ -98,10 +98,6 @@ impl Moveable for Vehicle {
         }
         self.delta = self.distance_remaining;
         self.distance_remaining = 0.;
-        // let next_step_id = self.get_next_node(self.next_id, osm_graph);
-        // if self.marked_for_deletion {
-        //     return;
-        // }
 
         let tmp = match self.get_next_node(self.next_id, osm_graph) {
             Some(id) => id,
@@ -114,7 +110,7 @@ impl Moveable for Vehicle {
                         && self.path_ids.last().unwrap() == &self.prev_id
                 {
                     self.is_parked = true;
-                    log::info!("Vehicle {} is done driving", self.id);
+                    log::info!("Vehicle - 3 {} is done driving", self.id);
                     return;
                 } else {
                     panic!(
@@ -181,7 +177,6 @@ impl Moveable for Vehicle {
                 self.id
             );
             self.marked_for_deletion = true;
-            // WARN: skipping ids?
             self.prev_id = next_id;
             self.next_id = self.path_ids[next_id_index + 1];
             return None;
