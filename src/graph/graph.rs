@@ -22,11 +22,8 @@ pub struct OSMGraph {
 // uses it's own ID's / indcies and not the OSM ID's.
 pub trait GUtils {
     fn new(osm_graph: GI) -> Result<OSMGraph>;
-    fn get_graph(&self) -> &petgraph::prelude::GraphMap<OSMID, f64, Directed>;
     fn get_vertices(&self) -> Vec<Vertex>;
-    fn get_edges(&self) -> Vec<Edge>;
     fn hashmap_osm_id_to_index(&self) -> HashMap<usize, usize>;
-    fn hashmap_index_to_osm_id(&self) -> HashMap<usize, usize>;
 }
 
 pub trait GPartition {
@@ -156,30 +153,14 @@ impl GUtils for OSMGraph {
         })
     }
 
-    fn get_graph(&self) -> &petgraph::prelude::GraphMap<OSMID, f64, Directed> {
-        &self.graph
-    }
-
     fn get_vertices(&self) -> Vec<Vertex> {
         self.osm.vertices.clone()
-    }
-
-    fn get_edges(&self) -> Vec<Edge> {
-        self.osm.edges.clone()
     }
 
     fn hashmap_osm_id_to_index(&self) -> HashMap<usize, usize> {
         let mut map = HashMap::<usize, usize>::new();
         for (i, v) in self.get_vertices().iter().enumerate() {
             map.insert(v.osm_id, i);
-        }
-        map
-    }
-
-    fn hashmap_index_to_osm_id(&self) -> HashMap<usize, usize> {
-        let mut map = HashMap::<usize, usize>::new();
-        for (i, v) in self.get_vertices().iter().enumerate() {
-            map.insert(i, v.osm_id);
         }
         map
     }

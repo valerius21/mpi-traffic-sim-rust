@@ -111,7 +111,7 @@ impl Moveable for Vehicle {
                         && self.path_ids.last().unwrap() == &self.prev_id
                 {
                     self.is_parked = true;
-                    log::info!("Vehicle - 3 {} is done driving", self.id);
+                    log::debug!("Vehicle - 3 {} is done driving", self.id);
                     return;
                 } else {
                     panic!(

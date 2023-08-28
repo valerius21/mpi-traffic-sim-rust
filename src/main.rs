@@ -1,4 +1,3 @@
-// #![allow(unused)] TODO: remove leter
 extern crate mpi;
 extern crate rand;
 
@@ -232,7 +231,7 @@ fn main() -> Result<()> {
                 match status.tag() {
                     ROOT_LEAF_VEHICLE => {
                         let o_data = Arc::clone(&mm);
-
+                        // fire and forget
                         thread::spawn(move || {
                             let lock = o_data.lock().unwrap();
                             let cont = process_vehicle(world, rank, &lock, msg, status);
@@ -248,7 +247,6 @@ fn main() -> Result<()> {
                                 }
                             }
                         });
-                        // h.await.unwrap();
                     }
                     ROOT_LEAF_TERMINATE => {
                         log::info!("[{}] Received termination notification", rank);
@@ -338,7 +336,7 @@ fn process_vehicle(
     loop {
         if v.is_parked {
             // v is done
-            log::info!("[{}] - 2 Vehicle {} is done driving", rank, v.id);
+            log::info!("[{}] Vehicle {} is done driving", rank, v.id);
             // create buffer containing the number 1
             let buf = vec![1];
             world
