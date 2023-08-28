@@ -11,6 +11,8 @@ mod streets;
 mod utils;
 use core::panic;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use crate::graph::get_path_length;
 use crate::graph::graph::{GPartition, GUtils, OSMGraph};
@@ -21,7 +23,10 @@ use crate::prelude::*;
 use crate::utils::MpiMessageContent;
 use clap::Parser;
 use log::Level;
+use mpi::point_to_point::Status;
+use mpi::topology::SystemCommunicator;
 use mpi::traits::*;
+use mpi::Rank;
 
 /// Traffic Simulation with MPI
 #[derive(Parser, Debug)]
@@ -44,8 +49,7 @@ struct Args {
     error_rate: f64,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let args = Args::parse();
     let number_of_vehicles = args.number_of_vehicles;
     let error_rate = args.error_rate;
@@ -68,7 +72,7 @@ async fn main() -> Result<()> {
     let finishing_threshold = ((number_of_vehicles as f64) * (1.0 - error_rate)) as usize;
 
     // mpi setup
-    let universe = mpi::initialize().unwrap();
+    let (universe, _) = mpi::initialize_with_threading(mpi::Threading::Multiple).unwrap();
     let world = universe.world();
     let size = world.size();
     let rank = world.rank();
@@ -79,7 +83,7 @@ async fn main() -> Result<()> {
 
     // read input data for gprah
     let json = std::fs::read_to_string(args.path)?;
-    let model: GraphInput = serde_json::from_str(&json).unwrap(); // FIXME: result handling
+    let model: GraphInput = serde_json::from_str(&json).unwrap();
     let partitions: usize = (size - 1).try_into().unwrap();
 
     // bootstrap the root graph
@@ -95,6 +99,7 @@ async fn main() -> Result<()> {
     );
 
     log::info!("[{}] Making {} partition(s)", rank, partitions);
+    let start = std::time::Instant::now();
     match rank {
         0 => {
             let mut finished_vehicle_counter = 0;
@@ -120,7 +125,6 @@ async fn main() -> Result<()> {
             }
 
             log::debug!("[{}] Sending vehicles", rank);
-            // FIXME: This approach avoids invalid vertices in the path, e.g. on graph islands
             let mut vehicle_counter = 0;
             // send vehicles
             while vehicle_counter < number_of_vehicles {
@@ -160,7 +164,7 @@ async fn main() -> Result<()> {
                         }
                     }
                     EDGE_LENGTH_REQUEST => {
-                        log::debug!("Received edge length request");
+                        log::debug!("[{}] Received edge length request", rank);
                         let el_req = EdgeLengthRequest::from_bytes(msg).unwrap();
                         let from = el_req.from;
                         let to = el_req.to;
@@ -212,101 +216,144 @@ async fn main() -> Result<()> {
         rank_number => {
             log::debug!("[{}] Assigning leaf to rank", rank);
             let r: usize = rank_number.try_into().unwrap();
-            let part = osm_graph.partition(partitions, r - 1)?;
+            let p = osm_graph.partition(partitions, r - 1)?;
 
             log::info!(
                 "[{}] Rank {} -> Size ({},{})",
                 rank,
                 r,
-                part.graph.node_count(),
-                part.graph.edge_count()
+                p.graph.node_count(),
+                p.graph.edge_count()
             );
 
+            let mm = Arc::new(Mutex::new(p));
             loop {
-                let (msg, status) = world.any_process().receive_vec::<u8>();
+                let (msg, status) = world.process_at_rank(0).receive_vec::<u8>();
                 match status.tag() {
                     ROOT_LEAF_VEHICLE => {
-                        let mut v = Vehicle::from_bytes(msg).unwrap();
-                        log::debug!(
-                            "[{}] Received vehicle from rank {} ID {}",
-                            rank,
-                            status.source_rank(),
-                            v.id
-                        );
+                        let o_data = Arc::clone(&mm);
 
-                        if v.is_parked || v.prev_id == v.next_id {
-                            // vehicle is done
-                            log::info!("[{}] - 1 Vehicle {} is done driving", rank, v.id);
-                            continue;
-                        }
-
-                        // II.3
-                        v.marked_for_deletion = false;
-
-                        // ask root for edge length
-                        let el_req = EdgeLengthRequest {
-                            from: v.prev_id,
-                            to: v.next_id,
-                        };
-                        let buf = EdgeLengthRequest::to_bytes(el_req.clone()).unwrap();
-                        log::debug!(
-                            "[{}] Sending edge length request, {:?} @ {:?}",
-                            rank,
-                            el_req,
-                            v
-                        );
-                        world
-                            .process_at_rank(0)
-                            .send_with_tag(&buf[..], EDGE_LENGTH_REQUEST);
-
-                        // get edge length
-                        let (el_msg, _) = world
-                            .process_at_rank(0)
-                            .receive_vec_with_tag::<f64>(EDGE_LENGTH_RESPONSE);
-
-                        // II.5
-                        v.delta += el_msg[0];
-
-                        log::debug!(
-                            "[{}] Vehicle {} is driving from {} to {}",
-                            rank,
-                            v.id,
-                            v.prev_id,
-                            v.next_id
-                        );
-
-                        loop {
-                            if v.is_parked {
-                                // v is done
-                                log::info!("[{}] - 2 Vehicle {} is done driving", rank, v.id);
-                                // create buffer containing the number 1
-                                let buf = vec![1];
-                                world
-                                    .process_at_rank(0)
-                                    .send_with_tag(&buf[..], LEAF_ROOT_VEHICLE_FINISH);
-                                break;
-                            } else if v.marked_for_deletion {
-                                log::debug!("[{}] Sending vehicle {} to root", rank, v.id);
-                                // send vehicle to root
-                                world.process_at_rank(0).send_with_tag(
-                                    &Vehicle::to_bytes(v).unwrap()[..],
-                                    LEAF_ROOT_VEHICLE,
-                                );
-                                break;
+                        thread::spawn(move || {
+                            let lock = o_data.lock().unwrap();
+                            let cont = process_vehicle(world, rank, &lock, msg, status);
+                            match cont {
+                                Ok(cont) => cont,
+                                Err(err) => {
+                                    log::error!(
+                                        "[{}] Error while processing vehicle: {:?}",
+                                        rank,
+                                        err
+                                    );
+                                    false
+                                }
                             }
-                            v.step(&part);
-                        }
+                        });
+                        // h.await.unwrap();
                     }
                     ROOT_LEAF_TERMINATE => {
                         log::info!("[{}] Received termination notification", rank);
                         break;
                     }
+                    // proxy edge length response
+                    EDGE_LENGTH_RESPONSE => {
+                        log::debug!("[{}] Received edge length response", rank);
+                        world
+                            .this_process()
+                            .send_with_tag(&msg[..], EDGE_LENGTH_RESPONSE);
+                    }
                     _ => {
-                        log::error!("[{}] Received unknown message with unknown tag", rank);
+                        log::error!(
+                            "[{}] Received unknown message with unknown tag {}->{} from {}",
+                            rank,
+                            status.tag(),
+                            msg.len(),
+                            status.source_rank()
+                        );
                     }
                 }
             }
         }
     };
+    let end = std::time::Instant::now();
+    log::info!("[{}] Finished in {:?}", rank, end - start);
     Ok(())
+}
+
+fn process_vehicle(
+    world: SystemCommunicator,
+    rank: Rank,
+    part: &OSMGraph,
+    msg: Vec<u8>,
+    status: Status,
+) -> Result<bool> {
+    let mut v = Vehicle::from_bytes(msg).unwrap();
+    log::debug!(
+        "[{}] Received vehicle from rank {} ID {}",
+        rank,
+        status.source_rank(),
+        v.id
+    );
+
+    if v.is_parked || v.prev_id == v.next_id {
+        // vehicle is done
+        log::info!("[{}] - 1 Vehicle {} is done driving", rank, v.id);
+        return Ok(true);
+    }
+
+    // II.3
+    v.marked_for_deletion = false;
+
+    // ask root for edge length
+    let el_req = EdgeLengthRequest {
+        from: v.prev_id,
+        to: v.next_id,
+    };
+    let buf = EdgeLengthRequest::to_bytes(el_req.clone()).unwrap();
+    log::debug!(
+        "[{}] Sending edge length request, {:?} @ {:?}",
+        rank,
+        el_req,
+        v
+    );
+    world
+        .process_at_rank(0)
+        .send_with_tag(&buf[..], EDGE_LENGTH_REQUEST);
+
+    // get edge length
+    let (el_msg, _) = world
+        .this_process()
+        .receive_vec_with_tag::<f64>(EDGE_LENGTH_RESPONSE);
+
+    // II.5
+    v.delta += el_msg[0];
+
+    log::debug!(
+        "[{}] Vehicle {} is driving from {} to {}",
+        rank,
+        v.id,
+        v.prev_id,
+        v.next_id
+    );
+
+    loop {
+        if v.is_parked {
+            // v is done
+            log::info!("[{}] - 2 Vehicle {} is done driving", rank, v.id);
+            // create buffer containing the number 1
+            let buf = vec![1];
+            world
+                .process_at_rank(0)
+                .send_with_tag(&buf[..], LEAF_ROOT_VEHICLE_FINISH);
+            break;
+        } else if v.marked_for_deletion {
+            log::debug!("[{}] Sending vehicle {} to root", rank, v.id);
+            // send vehicle to root
+            world
+                .process_at_rank(0)
+                .send_with_tag(&Vehicle::to_bytes(v).unwrap()[..], LEAF_ROOT_VEHICLE);
+            break;
+        }
+        v.step(&part);
+    }
+    Ok(false)
 }

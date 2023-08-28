@@ -10,22 +10,22 @@ use crate::prelude::*;
 use crate::{graph::graph::OSMID, utils::MpiMessageContent};
 
 // Root to leaf vehicle sending tag
-pub const ROOT_LEAF_VEHICLE: i32 = 0x01;
+pub const ROOT_LEAF_VEHICLE: i32 = 1;
 
 // Leaf to root vehicle sending tag
-pub const LEAF_ROOT_VEHICLE: i32 = 0x02;
+pub const LEAF_ROOT_VEHICLE: i32 = 2;
 
 // Leaf asks root for edge length
-pub const EDGE_LENGTH_REQUEST: i32 = 0x03;
+pub const EDGE_LENGTH_REQUEST: i32 = 3;
 
 // Root responds to leaf with edge length
-pub const EDGE_LENGTH_RESPONSE: i32 = 0x04;
+pub const EDGE_LENGTH_RESPONSE: i32 = 4;
 
 // Leaf to Root vehicle finishng notification
-pub const LEAF_ROOT_VEHICLE_FINISH: i32 = 0x05;
+pub const LEAF_ROOT_VEHICLE_FINISH: i32 = 5;
 
 // Root to leaf program termination notification
-pub const ROOT_LEAF_TERMINATE: i32 = 0x06;
+pub const ROOT_LEAF_TERMINATE: i32 = 6;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EdgeLengthRequest {
