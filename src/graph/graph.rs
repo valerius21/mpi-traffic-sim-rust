@@ -59,18 +59,7 @@ fn determine_rects(target_graph: &OSMGraph, n: usize, i: usize) -> Result<OSMGra
     // filter for vertices in target rect
     let mut t_vrtx = target_rect.vertices.clone();
     t_vrtx.retain(|x| target_rect.in_rect(x.clone()));
-
-    // NOTE:Dancemove 💃
-    let mut osmid_to_index_map = target_graph.hashmap_osm_id_to_index();
-
-    // filter for vertices in target rect
-    osmid_to_index_map
-        .retain(|_, index| target_rect.in_rect(target_graph.get_vertices()[*index].clone()));
-
-    target_rect.vertices = osmid_to_index_map
-        .par_iter()
-        .map(|(_, index)| target_graph.get_vertices()[*index].clone())
-        .collect();
+    target_rect.vertices = t_vrtx;
 
     let verticies = target_rect
         .vertices
