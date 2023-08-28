@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::graph::get_path_length;
-use crate::graph::graph::{GPartition, GUtils, OSMGraph};
+use crate::graph::graph::{GPartition, OSMGraph};
 use crate::mmpi::*;
 use crate::models::graph_input::GraphInput;
 use crate::models::vehicle::{Moveable, Vehicle};

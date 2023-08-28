@@ -1,10 +1,6 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-use crate::{
-    graph::rect::Point,
-    models::graph_input::{Edge, Graph as GI, Vertex},
-    prelude::Result,
-};
+use crate::{graph::rect::Point, models::graph_input::Graph as GI, prelude::Result};
 use petgraph::{prelude::DiGraphMap, Directed};
 use rayon::prelude::*;
 
@@ -18,14 +14,6 @@ pub struct OSMGraph {
     pub graph: petgraph::prelude::GraphMap<OSMID, f64, Directed>,
 }
 
-// A lot of those methods dance around the fact that the graph
-// uses it's own ID's / indcies and not the OSM ID's.
-pub trait GUtils {
-    fn new(osm_graph: GI) -> Result<OSMGraph>;
-    fn get_vertices(&self) -> Vec<Vertex>;
-    fn hashmap_osm_id_to_index(&self) -> HashMap<usize, usize>;
-}
-
 pub trait GPartition {
     // n => number of partitions
     // i => index of partition
@@ -34,7 +22,7 @@ pub trait GPartition {
 }
 
 fn determine_rects(target_graph: &OSMGraph, n: usize, i: usize) -> Result<OSMGraph> {
-    let vtx_lst = target_graph.get_vertices();
+    let vtx_lst = target_graph.osm.vertices.clone();
     let rect = Rect::new(vtx_lst.clone())?;
     let x_delta: f64 = (rect.top_right.x - rect.bottom_left.x) / n as f64;
     let x_offset: f64 = x_delta * i as f64;
@@ -125,8 +113,8 @@ impl GPartition for OSMGraph {
     }
 }
 
-impl GUtils for OSMGraph {
-    fn new(osm_graph: GI) -> Result<OSMGraph> {
+impl OSMGraph {
+    pub fn new(osm_graph: GI) -> Result<OSMGraph> {
         let e_lst: Vec<(OSMID, OSMID, f64)> = osm_graph
             .edges
             .par_iter()
@@ -140,17 +128,5 @@ impl GUtils for OSMGraph {
             graph: digraphmap,
             osm: osm_graph,
         })
-    }
-
-    fn get_vertices(&self) -> Vec<Vertex> {
-        self.osm.vertices.clone()
-    }
-
-    fn hashmap_osm_id_to_index(&self) -> HashMap<usize, usize> {
-        let mut map = HashMap::<usize, usize>::new();
-        for (i, v) in self.get_vertices().iter().enumerate() {
-            map.insert(v.osm_id, i);
-        }
-        map
     }
 }
