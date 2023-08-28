@@ -1,6 +1,6 @@
 extern crate mpi;
 
-use mpi::{environment::Universe, traits::*};
+use mpi::traits::*;
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -30,20 +30,6 @@ use crate::{
     vmpi::*,
 };
 
-fn setup_mpi() -> (i32, i32) {
-    // mpi setup
-    let (universe, _) = mpi::initialize_with_threading(mpi::Threading::Multiple).unwrap();
-    let world = universe.world();
-    let size = world.size();
-    let rank = world.rank();
-
-    if size < 2 {
-        panic!("Size of MPI_COMM_WORLD must be 2, but is {}!", size);
-    }
-
-    (size, rank)
-}
-
 fn setup_logging(level: cli::LoggingLevel) {
     let level = match level {
         cli::LoggingLevel::Debug => log::Level::Debug,
@@ -65,7 +51,7 @@ fn parse_input(input_file: &PathBuf) -> Result<OSMGraph> {
 }
 
 /// Entry point for the simulation
-pub fn run(cli: Cli) -> Result<()> {
+pub async fn run(cli: Cli) -> Result<()> {
     match cli.command {
         cli::Commands::GraphParts {
             input_file,
@@ -87,6 +73,10 @@ pub fn run(cli: Cli) -> Result<()> {
             }
             // finishing threshold
             let finishing_threshold = ((num_vehicles as f64) * (1.0 - error_rate)) as usize;
+
+            if mpi && parallelism == Parallelism::SingleThreaded {
+                panic!("MPI and SingleThreaded are not compatible!");
+            }
 
             if mpi {
                 log::debug!("Running with MPI");
@@ -163,6 +153,61 @@ pub fn run(cli: Cli) -> Result<()> {
                 };
                 let end = std::time::Instant::now();
                 log::info!("[{}] Finished in {:?}", rank, end - start);
+            } else {
+                log::debug!("Running without MPI");
+                let osm_graph = parse_input(&input_file).unwrap();
+                let my_graph = osm_graph.graph.clone();
+
+                log::info!(
+                    "Root Size ({},{})",
+                    my_graph.node_count(),
+                    my_graph.edge_count()
+                );
+
+                let start = std::time::Instant::now();
+
+                match parallelism {
+                    Parallelism::SingleThreaded => {
+                        for _ in 0..num_vehicles {
+                            let mut v = Vehicle::generate_default(&my_graph).unwrap();
+
+                            v.drive(&osm_graph);
+                        }
+                    }
+                    Parallelism::MultiThreaded => match thread_runtime {
+                        cli::ThreadRuntime::RustThreads => {
+                            let mut handles = vec![];
+                            for _ in 0..num_vehicles {
+                                let mut v = Vehicle::generate_default(&my_graph).unwrap();
+                                let osm_graph = Arc::new(osm_graph.clone());
+                                let handle = thread::spawn(move || {
+                                    v.drive(&osm_graph);
+                                });
+                                handles.push(handle);
+                            }
+                            for handle in handles {
+                                handle.join().unwrap();
+                            }
+                        }
+                        cli::ThreadRuntime::Tokio => {
+                            let mut handles = vec![];
+                            for _ in 0..num_vehicles {
+                                let mut v = Vehicle::generate_default(&my_graph).unwrap();
+                                let osm_graph = Arc::new(osm_graph.clone());
+                                let handle = tokio::spawn(async move {
+                                    v.drive(&osm_graph);
+                                });
+                                handles.push(handle);
+                            }
+                            for handle in handles {
+                                handle.await.unwrap();
+                            }
+                        }
+                    },
+                }
+
+                let end = std::time::Instant::now();
+                log::info!("[{}] Finished in {:?}", ROOT_RANK, end - start);
             }
             Ok(())
         }
@@ -205,7 +250,7 @@ fn root_event_loop(
     let mut vehicle_counter = 0;
     // send vehicles
     while vehicle_counter < num_vehicles {
-        let v = Vehicle::generate_default(&my_graph).unwrap();
+        let v = Vehicle::generate_default(my_graph).unwrap();
 
         match map_vehicle_to_rank(v, &node_to_rank, rank, world) {
             Ok(_) => {}
@@ -302,12 +347,11 @@ fn process_leaf_event(
 ) -> bool {
     match status.tag() {
         ROOT_LEAF_VEHICLE => {
-            let o_data = Arc::clone(&mm);
+            let o_data = Arc::clone(mm);
             match parallelism {
                 Parallelism::SingleThreaded => {
-                    let lock = o_data.lock().unwrap();
-                    let msg = msg.clone();
-                    process_vehicle(world, rank, &*lock, msg, status).unwrap();
+                    single_drive(world, rank, &msg, status, o_data);
+                    todo!()
                 }
                 Parallelism::MultiThreaded => {
                     match thread_runtime {
@@ -346,14 +390,33 @@ fn process_leaf_event(
     false
 }
 
+fn single_drive(
+    world: SystemCommunicator,
+    rank: i32,
+    msg: &[u8],
+    status: Status,
+    o_data: Arc<Mutex<OSMGraph>>,
+) -> bool {
+    let msg = msg.to_owned();
+    let lock = o_data.lock().unwrap();
+    let cont = process_vehicle(world, rank, &lock, msg, status);
+    match cont {
+        Ok(cont) => cont,
+        Err(err) => {
+            log::error!("[{}] Error while processing vehicle: {:?}", rank, err);
+            false
+        }
+    }
+}
+
 fn mpi_drive(
     world: SystemCommunicator,
     rank: i32,
-    msg: &Vec<u8>,
+    msg: &[u8],
     status: Status,
     o_data: Arc<Mutex<OSMGraph>>,
 ) {
-    let msg = msg.clone();
+    let msg = msg.to_owned();
     thread::spawn(move || {
         let lock = o_data.lock().unwrap();
         let cont = process_vehicle(world, rank, &lock, msg, status);
@@ -370,11 +433,11 @@ fn mpi_drive(
 fn mpi_tokio_drive(
     world: SystemCommunicator,
     rank: i32,
-    msg: &Vec<u8>,
+    msg: &[u8],
     status: Status,
     o_data: Arc<Mutex<OSMGraph>>,
 ) -> JoinHandle<bool> {
-    let msg = msg.clone();
+    let msg = msg.to_owned();
     tokio::spawn(async move {
         let lock = o_data.lock().unwrap();
         let cont = process_vehicle(world, rank, &lock, msg.clone(), status);
@@ -445,6 +508,7 @@ fn process_vehicle(
     );
 
     loop {
+        log::debug!("Vehicle {} is driving", v.id);
         if v.is_parked {
             // v is done
             log::info!("[{}] Vehicle {} is done driving", rank, v.id);

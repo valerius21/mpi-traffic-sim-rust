@@ -19,6 +19,6 @@ mod world;
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    world::run(cli).unwrap();
+    world::run(cli).await.unwrap();
     Ok(())
 }
