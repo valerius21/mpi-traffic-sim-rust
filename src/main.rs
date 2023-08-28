@@ -182,7 +182,7 @@ fn main() -> Result<()> {
                         let v = vec![el];
                         world
                             .process_at_rank(status.source_rank())
-                            .send_with_tag(&v[..], Tags::EDGE_LENGTH_RESPONSE as i32);
+                            .send_with_tag(&v[..], EDGE_LENGTH_RESPONSE);
                     }
                     LEAF_ROOT_VEHICLE_FINISH => {
                         finished_vehicle_counter += 1;
@@ -195,7 +195,7 @@ fn main() -> Result<()> {
                             for r in 1..size {
                                 world
                                     .process_at_rank(r)
-                                    .send_with_tag(&[1], Tags::ROOT_LEAF_TERMINATE as i32);
+                                    .send_with_tag(&[1], ROOT_LEAF_TERMINATE);
                             }
                             break;
                         }
@@ -314,12 +314,12 @@ fn process_vehicle(
     );
     world
         .process_at_rank(ROOT_RANK)
-        .send_with_tag(&buf[..], Tags::EDGE_LENGTH_REQUEST as i32);
+        .send_with_tag(&buf[..], EDGE_LENGTH_REQUEST);
 
     // get edge length
     let (el_msg, _) = world
         .this_process()
-        .receive_vec_with_tag::<f64>(Tags::EDGE_LENGTH_RESPONSE as i32);
+        .receive_vec_with_tag::<f64>(EDGE_LENGTH_RESPONSE);
 
     // II.5
     v.delta += el_msg[0];
@@ -340,15 +340,14 @@ fn process_vehicle(
             let buf = vec![1];
             world
                 .process_at_rank(ROOT_RANK)
-                .send_with_tag(&buf[..], Tags::LEAF_ROOT_VEHICLE_FINISH as i32);
+                .send_with_tag(&buf[..], LEAF_ROOT_VEHICLE_FINISH);
             break;
         } else if v.marked_for_deletion {
             log::debug!("[{}] Sending vehicle {} to root", rank, v.id);
             // send vehicle to root
-            world.process_at_rank(ROOT_RANK).send_with_tag(
-                &Vehicle::to_bytes(v).unwrap()[..],
-                Tags::LEAF_ROOT_VEHICLE as i32,
-            );
+            world
+                .process_at_rank(ROOT_RANK)
+                .send_with_tag(&Vehicle::to_bytes(v).unwrap()[..], LEAF_ROOT_VEHICLE);
             break;
         }
         v.step(part);
