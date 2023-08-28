@@ -9,6 +9,7 @@ mod models;
 mod prelude;
 mod streets;
 mod utils;
+use core::panic;
 use std::collections::HashMap;
 
 use crate::graph::graph::{GPartition, GUtils, OSMGraph};
@@ -72,16 +73,24 @@ async fn main() -> Result<()> {
         0 => {
             log::debug!("[{}] Creating NodeID->Rank mapping", rank);
             // create map with nodeID->rank mapping
-            // ! FIXME it does not contain all nodes
             let mut node_to_rank = HashMap::new();
 
             for r in 1..size {
                 let rr: usize = r.try_into().unwrap();
+                // ! FIXME it does not contain all nodes
                 let part = osm_graph.partition(partitions, rr - 1)?;
 
                 for node in part.graph.nodes() {
                     node_to_rank.insert(node, r);
                 }
+            }
+
+            if node_to_rank.len() != my_graph.nodes().len() {
+                panic!(
+                    "Node to rank mapping is incomplete! {} != {}",
+                    node_to_rank.len(),
+                    my_graph.nodes().len()
+                );
             }
 
             log::debug!("[{}] Sending vehicles", rank);
@@ -114,8 +123,12 @@ async fn main() -> Result<()> {
                         let v = Vehicle::from_bytes(msg).unwrap();
                         match map_vehicle_to_rank(v, &node_to_rank, rank, world) {
                             Ok(_) => {}
-                            Err(_) => {
-                                log::warn!("[{}] Failed to send vehicle after receive", rank);
+                            Err(err) => {
+                                log::warn!(
+                                    "[{}] Failed to send vehicle after receive: {:?}",
+                                    rank,
+                                    err
+                                );
                                 // ! FIXME vehicles get lost due to hashmap errors above
                                 continue;
                             }

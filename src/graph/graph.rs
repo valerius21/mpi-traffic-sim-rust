@@ -34,66 +34,111 @@ pub trait GPartition {
     // id => GraphID
     fn partition(&self, n: usize, i: usize) -> Result<OSMGraph>;
 }
+// The tolerance for floating point comparisons for the rectangle X
+// The rectangle misses some nodes, because of input data inconsistencies in precision
+// TODO:
+// const TOLERANCE: f64 = 0.0001;
+
+fn determine_rects(target_graph: &OSMGraph, n: usize, i: usize) -> Result<OSMGraph> {
+    let vtx_lst = target_graph.get_vertices();
+    let rect = Rect::new(vtx_lst.clone())?;
+    let x_delta: f64 = (rect.top_right.x - rect.bottom_left.x) / n as f64;
+    let x_offset: f64 = x_delta * i as f64;
+
+    // new rect with offset
+    let offset_bottom_left = Point {
+        x: rect.bottom_left.x + x_offset,
+        y: rect.bottom_left.y,
+    };
+    let offset_top_right = Point {
+        x: offset_bottom_left.x + x_delta,
+        y: rect.top_right.y,
+    };
+
+    // finish new rect with target_rect
+    let mut target_rect = Rect {
+        bottom_left: offset_bottom_left,
+        top_right: offset_top_right,
+        vertices: vtx_lst, // temporary clone all verticies from the struct
+    };
+
+    // filter for vertices in target rect
+    let mut t_vrtx = target_rect.vertices.clone();
+    t_vrtx.retain(|x| target_rect.in_rect(x.clone()));
+
+    // NOTE:Dancemove 💃
+    let mut osmid_to_index_map = target_graph.hashmap_osm_id_to_index();
+
+    // filter for vertices in target rect
+    osmid_to_index_map
+        .retain(|_, index| target_rect.in_rect(target_graph.get_vertices()[*index].clone()));
+
+    target_rect.vertices = osmid_to_index_map
+        .iter()
+        .map(|(_, index)| target_graph.get_vertices()[*index].clone())
+        .collect();
+
+    let verticies = target_rect
+        .vertices
+        .clone()
+        .into_iter()
+        .map(|v| v.osm_id)
+        .collect::<HashSet<OSMID>>();
+    let inside_edges = target_graph
+        .graph
+        .all_edges()
+        .filter(|e: &(OSMID, OSMID, &f64)| verticies.contains(&e.0) && verticies.contains(&e.1));
+
+    let child_graph: petgraph::prelude::GraphMap<OSMID, f64, Directed> =
+        DiGraphMap::from_edges(inside_edges);
+
+    let osm_g = OSMGraph {
+        graph: child_graph,
+        osm: target_graph.osm.clone(),
+    };
+
+    Ok(osm_g)
+}
 
 impl GPartition for OSMGraph {
     fn partition(&self, n: usize, i: usize) -> Result<OSMGraph> {
-        let vtx_lst = self.get_vertices();
-        let rect = Rect::new(vtx_lst.clone())?;
-        let x_delta: f64 = (rect.top_right.x - rect.bottom_left.x) / n as f64;
-        let x_offset: f64 = x_delta * i as f64;
+        // create all possible rects
+        let mut graphs = Vec::<OSMGraph>::new();
 
-        // new rect with offset
-        let offset_bottom_left = Point {
-            x: rect.bottom_left.x + x_offset,
-            y: rect.bottom_left.y,
-        };
-        let offset_top_right = Point {
-            x: offset_bottom_left.x + x_delta,
-            y: rect.top_right.y,
-        };
+        // create all possible rects
+        for j in 0..n {
+            let osm_g = determine_rects(self, n, j)?;
+            graphs.push(osm_g);
+        }
 
-        // finish new rect with target_rect
-        let mut target_rect = Rect {
-            bottom_left: offset_bottom_left,
-            top_right: offset_top_right,
-            vertices: vtx_lst, // temporary clone all verticies from the struct
-        };
+        // create a set of all vertices in all rects
+        let mut vertex_set = HashSet::<OSMID>::new();
+        for g in &graphs {
+            let gg = g.graph.clone();
+            let v = gg.nodes();
+            vertex_set.extend(v);
+        }
 
-        // filter for vertices in target rect
-        let mut t_vrtx = target_rect.vertices.clone();
-        t_vrtx.retain(|x| target_rect.in_rect(x.clone()));
+        // create a vector with the difference of all vertices and the set
+        let mut diff = Vec::<OSMID>::new();
+        let graph = self.graph.clone();
+        for v in graph.nodes() {
+            if !vertex_set.contains(&v) {
+                diff.push(v);
+            }
+        }
 
-        // NOTE:Dancemove 💃
-        let mut osmid_to_index_map = self.hashmap_osm_id_to_index();
+        if i == 0 {
+            // add the difference to the first graph
+            // HACK: maybe round-robin the difference to all graphs for an even workload
+            let mut g = graphs[0].clone();
+            for v in diff {
+                g.graph.add_node(v);
+            }
+            return Ok(g);
+        }
 
-        // filter for vertices in target rect
-        osmid_to_index_map
-            .retain(|_, index| target_rect.in_rect(self.get_vertices()[*index].clone()));
-
-        target_rect.vertices = osmid_to_index_map
-            .iter()
-            .map(|(_, index)| self.get_vertices()[*index].clone())
-            .collect();
-
-        let verticies = target_rect
-            .vertices
-            .clone()
-            .into_iter()
-            .map(|v| v.osm_id)
-            .collect::<HashSet<OSMID>>();
-        let inside_edges = self.graph.all_edges().filter(|e: &(OSMID, OSMID, &f64)| {
-            verticies.contains(&e.0) && verticies.contains(&e.1)
-        });
-
-        let child_graph: petgraph::prelude::GraphMap<OSMID, f64, Directed> =
-            DiGraphMap::from_edges(inside_edges);
-
-        let osm_g = OSMGraph {
-            graph: child_graph,
-            osm: self.osm.clone(),
-        };
-
-        Ok(osm_g)
+        Ok(graphs[i].clone())
     }
 }
 

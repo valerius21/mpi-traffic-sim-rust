@@ -32,12 +32,11 @@ impl Rect {
 
     pub fn in_rect(&self, v: Vertex) -> bool {
         let x = v.x;
-        let y = v.y;
+        // let y = v.y;
 
-        self.bottom_left.x <= x
-            && x <= self.top_right.x
-            && self.bottom_left.y <= y
-            && y <= self.top_right.y
+        self.bottom_left.x <= x && x <= self.top_right.x
+        // && self.bottom_left.y <= y
+        // && y <= self.top_right.y
     }
 
     pub fn set_top_right_bottom_left(mut self) -> Self {
