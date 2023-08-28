@@ -18,7 +18,7 @@ use crate::graph::osm_graph::{GPartition, OSMGraph};
 use crate::models::graph_input::GraphInput;
 use crate::models::vehicle::{Moveable, Vehicle};
 use crate::prelude::*;
-use crate::utils::MpiMessageContent;
+use crate::utils::{MpiMessageContent, MAX_NUMBER_OF_VEHICLES};
 use crate::vmpi::*;
 use clap::Parser;
 use log::Level;
@@ -59,7 +59,6 @@ fn main() -> Result<()> {
     }
 
     // Avoiding overflows
-    const MAX_NUMBER_OF_VEHICLES: usize = usize::MAX / 2;
     if number_of_vehicles > MAX_NUMBER_OF_VEHICLES {
         panic!(
             "Number of vehicles must be smaller than {}, but is {}!",
@@ -100,7 +99,7 @@ fn main() -> Result<()> {
     log::info!("[{}] Making {} partition(s)", rank, partitions);
     let start = std::time::Instant::now();
     match rank {
-        0 => {
+        ROOT_RANK => {
             let mut finished_vehicle_counter = 0;
             log::debug!("[{}] Creating NodeID->Rank mapping", rank);
             // create map with nodeID->rank mapping
@@ -183,7 +182,7 @@ fn main() -> Result<()> {
                         let v = vec![el];
                         world
                             .process_at_rank(status.source_rank())
-                            .send_with_tag(&v[..], EDGE_LENGTH_RESPONSE);
+                            .send_with_tag(&v[..], Tags::EDGE_LENGTH_RESPONSE as i32);
                     }
                     LEAF_ROOT_VEHICLE_FINISH => {
                         finished_vehicle_counter += 1;
@@ -196,7 +195,7 @@ fn main() -> Result<()> {
                             for r in 1..size {
                                 world
                                     .process_at_rank(r)
-                                    .send_with_tag(&[1], ROOT_LEAF_TERMINATE);
+                                    .send_with_tag(&[1], Tags::ROOT_LEAF_TERMINATE as i32);
                             }
                             break;
                         }
@@ -227,7 +226,7 @@ fn main() -> Result<()> {
 
             let mm = Arc::new(Mutex::new(p));
             loop {
-                let (msg, status) = world.process_at_rank(0).receive_vec::<u8>();
+                let (msg, status) = world.process_at_rank(ROOT_RANK).receive_vec::<u8>();
                 match status.tag() {
                     ROOT_LEAF_VEHICLE => {
                         let o_data = Arc::clone(&mm);
@@ -314,13 +313,13 @@ fn process_vehicle(
         v
     );
     world
-        .process_at_rank(0)
-        .send_with_tag(&buf[..], EDGE_LENGTH_REQUEST);
+        .process_at_rank(ROOT_RANK)
+        .send_with_tag(&buf[..], Tags::EDGE_LENGTH_REQUEST as i32);
 
     // get edge length
     let (el_msg, _) = world
         .this_process()
-        .receive_vec_with_tag::<f64>(EDGE_LENGTH_RESPONSE);
+        .receive_vec_with_tag::<f64>(Tags::EDGE_LENGTH_RESPONSE as i32);
 
     // II.5
     v.delta += el_msg[0];
@@ -340,15 +339,16 @@ fn process_vehicle(
             // create buffer containing the number 1
             let buf = vec![1];
             world
-                .process_at_rank(0)
-                .send_with_tag(&buf[..], LEAF_ROOT_VEHICLE_FINISH);
+                .process_at_rank(ROOT_RANK)
+                .send_with_tag(&buf[..], Tags::LEAF_ROOT_VEHICLE_FINISH as i32);
             break;
         } else if v.marked_for_deletion {
             log::debug!("[{}] Sending vehicle {} to root", rank, v.id);
             // send vehicle to root
-            world
-                .process_at_rank(0)
-                .send_with_tag(&Vehicle::to_bytes(v).unwrap()[..], LEAF_ROOT_VEHICLE);
+            world.process_at_rank(ROOT_RANK).send_with_tag(
+                &Vehicle::to_bytes(v).unwrap()[..],
+                Tags::LEAF_ROOT_VEHICLE as i32,
+            );
             break;
         }
         v.step(part);

@@ -13,3 +13,5 @@ pub fn get_random_vector_element<T>(v: &Vec<T>) -> Option<&T> {
     let random_index = rng.gen_range(0..v.len());
     v.get(random_index)
 }
+
+pub const MAX_NUMBER_OF_VEHICLES: usize = usize::MAX / 2;
