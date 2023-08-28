@@ -6,6 +6,7 @@ use crate::{
     prelude::Result,
 };
 use petgraph::{prelude::DiGraphMap, Directed};
+use rayon::prelude::*;
 
 use super::rect::Rect;
 
@@ -70,7 +71,7 @@ fn determine_rects(target_graph: &OSMGraph, n: usize, i: usize) -> Result<OSMGra
         .retain(|_, index| target_rect.in_rect(target_graph.get_vertices()[*index].clone()));
 
     target_rect.vertices = osmid_to_index_map
-        .iter()
+        .par_iter()
         .map(|(_, index)| target_graph.get_vertices()[*index].clone())
         .collect();
 
@@ -138,12 +139,11 @@ impl GPartition for OSMGraph {
     }
 }
 
-// TODO: needs proper builder pattern to allow construction for part graph
 impl GUtils for OSMGraph {
     fn new(osm_graph: GI) -> Result<OSMGraph> {
         let e_lst: Vec<(OSMID, OSMID, f64)> = osm_graph
             .edges
-            .iter()
+            .par_iter()
             .map(|edge| (edge.from, edge.to, edge.length))
             .collect::<Vec<(OSMID, OSMID, f64)>>();
 

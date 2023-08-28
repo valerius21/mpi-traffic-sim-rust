@@ -5,6 +5,7 @@ use bincode::{deserialize, serialize};
 use petgraph::algo::astar;
 use petgraph::prelude::GraphMap;
 use petgraph::Directed;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 type OSMID = usize;
@@ -146,7 +147,7 @@ impl Moveable for Vehicle {
         }
 
         // get the index of the next id, which is the index of prev_id + 1
-        let next_id_index = match self.path_ids.iter().position(|&x| x == prev_id) {
+        let next_id_index = match self.path_ids.par_iter().position_any(|&x| x == prev_id) {
             Some(i) => i + 1,
             None => {
                 log::error!("No next id found for prev_id={}", prev_id);
