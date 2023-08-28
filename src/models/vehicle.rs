@@ -1,6 +1,6 @@
-use crate::graph::graph::OSMID;
+use crate::graph::osm_graph::Osmid;
 use crate::utils::{get_random_vector_element, MpiMessageContent};
-use crate::{graph::graph::OSMGraph, prelude::*};
+use crate::{graph::osm_graph::OSMGraph, prelude::*};
 use bincode::{deserialize, serialize};
 use petgraph::algo::astar;
 use petgraph::prelude::GraphMap;
@@ -13,11 +13,11 @@ use super::vehicle_builder::VehicleBuilder;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Vehicle {
     pub id: String,
-    pub path_ids: Vec<OSMID>,
+    pub path_ids: Vec<Osmid>,
     pub speed: f64,
     pub delta: f64,
-    pub next_id: OSMID,
-    pub prev_id: OSMID,
+    pub next_id: Osmid,
+    pub prev_id: Osmid,
     pub is_parked: bool,
     pub distance_remaining: f64,
     pub marked_for_deletion: bool,
@@ -26,7 +26,7 @@ pub struct Vehicle {
 pub trait Moveable {
     fn drive(&mut self, graph: &OSMGraph);
     fn step(&mut self, graph: &OSMGraph);
-    fn get_next_node(&mut self, prev_id: OSMID, current_graph: &OSMGraph) -> Option<OSMID>;
+    fn get_next_node(&mut self, prev_id: Osmid, current_graph: &OSMGraph) -> Option<Osmid>;
 }
 
 impl Moveable for Vehicle {
@@ -38,15 +38,12 @@ impl Moveable for Vehicle {
 
     fn step(&mut self, osm_graph: &OSMGraph) {
         log::debug!("Vehicle {} is stepping", self.id);
-        if self.next_id < 0 as usize {
-            self.is_parked = true;
-        }
 
         let gg = &osm_graph.graph;
         if !gg.contains_edge(self.prev_id, self.next_id) {
             let old_prev = self.prev_id;
             self.prev_id = self.next_id;
-            self.next_id = match self.get_next_node(self.next_id, &osm_graph) {
+            self.next_id = match self.get_next_node(self.next_id, osm_graph) {
                 Some(id) => id,
                 None => {
                     self.prev_id = old_prev;
@@ -65,8 +62,7 @@ impl Moveable for Vehicle {
 
         let edge = match gg
             .edges_directed(self.prev_id, petgraph::Direction::Outgoing)
-            .filter(|e| e.1 == self.next_id)
-            .next()
+            .find(|e| e.1 == self.next_id)
         {
             Some(e) => e,
             None => panic!(
@@ -88,7 +84,7 @@ impl Moveable for Vehicle {
             self.distance_remaining -= self.speed;
         }
         self.delta = self.distance_remaining;
-        self.distance_remaining = 0.;
+        self.distance_remaining = 0_f64;
 
         let tmp = match self.get_next_node(self.next_id, osm_graph) {
             Some(id) => id,
@@ -123,11 +119,10 @@ impl Moveable for Vehicle {
 
         if self.next_id == 0 {
             self.is_parked = true;
-            return;
         }
     }
 
-    fn get_next_node(&mut self, prev_id: OSMID, current_graph: &OSMGraph) -> Option<OSMID> {
+    fn get_next_node(&mut self, prev_id: Osmid, current_graph: &OSMGraph) -> Option<Osmid> {
         // if prev_id is last element in path_ids, return None
         if self.path_ids.last().unwrap() == &prev_id
             || self.path_ids.get(self.path_ids.len() - 2).unwrap() == &prev_id
@@ -201,22 +196,16 @@ impl Vehicle {
 
         while path.is_none() || path_length < 5 {
             let start = match get_random_vector_element(&vtx) {
-                Some(v) => v.clone(),
+                Some(v) => *v,
                 None => Err(Error::Generic(String::from("No random vertex found")))?,
             };
 
             let end = match get_random_vector_element(&vtx) {
-                Some(v) => v.clone(),
+                Some(v) => *v,
                 None => Err(Error::Generic(String::from("No random vertex found")))?,
             };
 
-            path = astar(
-                &graph,
-                start,
-                |finish| finish == end,
-                |e| e.2.clone(),
-                |_| 0.,
-            );
+            path = astar(&graph, start, |finish| finish == end, |e| *e.2, |_| 0.);
 
             path_length = match path.as_ref() {
                 Some(p) => p.1.len(),

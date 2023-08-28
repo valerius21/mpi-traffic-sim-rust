@@ -6,12 +6,12 @@ use rayon::prelude::*;
 
 use super::rect::Rect;
 
-pub type OSMID = usize;
+pub type Osmid = usize;
 
 #[derive(Debug, Default, Clone)]
 pub struct OSMGraph {
     osm: GI,
-    pub graph: petgraph::prelude::GraphMap<OSMID, f64, Directed>,
+    pub graph: petgraph::prelude::GraphMap<Osmid, f64, Directed>,
 }
 
 // Graph Partitioning trait
@@ -48,7 +48,7 @@ fn determine_rects(target_graph: &OSMGraph, n: usize, i: usize) -> Result<OSMGra
 
     // filter for vertices in target rect
     let mut t_vrtx = target_rect.vertices.clone();
-    t_vrtx.retain(|x| target_rect.in_rect(x.clone()));
+    t_vrtx.retain(|x| target_rect.in_rect(*x));
     target_rect.vertices = t_vrtx;
 
     let verticies = target_rect
@@ -56,13 +56,13 @@ fn determine_rects(target_graph: &OSMGraph, n: usize, i: usize) -> Result<OSMGra
         .clone()
         .into_iter()
         .map(|v| v.osm_id)
-        .collect::<HashSet<OSMID>>();
+        .collect::<HashSet<Osmid>>();
     let inside_edges = target_graph
         .graph
         .all_edges()
-        .filter(|e: &(OSMID, OSMID, &f64)| verticies.contains(&e.0) && verticies.contains(&e.1));
+        .filter(|e: &(Osmid, Osmid, &f64)| verticies.contains(&e.0) && verticies.contains(&e.1));
 
-    let child_graph: petgraph::prelude::GraphMap<OSMID, f64, Directed> =
+    let child_graph: petgraph::prelude::GraphMap<Osmid, f64, Directed> =
         DiGraphMap::from_edges(inside_edges);
 
     let osm_g = OSMGraph {
@@ -85,7 +85,7 @@ impl GPartition for OSMGraph {
         }
 
         // create a set of all vertices in all rects
-        let mut vertex_set = HashSet::<OSMID>::new();
+        let mut vertex_set = HashSet::<Osmid>::new();
         for g in &graphs {
             let gg = g.graph.clone();
             let v = gg.nodes();
@@ -93,7 +93,7 @@ impl GPartition for OSMGraph {
         }
 
         // create a vector with the difference of all vertices and the set
-        let mut diff = Vec::<OSMID>::new();
+        let mut diff = Vec::<Osmid>::new();
         let graph = self.graph.clone();
         for v in graph.nodes() {
             if !vertex_set.contains(&v) {
@@ -117,13 +117,13 @@ impl GPartition for OSMGraph {
 
 impl OSMGraph {
     pub fn new(osm_graph: GI) -> Result<OSMGraph> {
-        let e_lst: Vec<(OSMID, OSMID, f64)> = osm_graph
+        let e_lst: Vec<(Osmid, Osmid, f64)> = osm_graph
             .edges
             .par_iter()
             .map(|edge| (edge.from, edge.to, edge.length))
-            .collect::<Vec<(OSMID, OSMID, f64)>>();
+            .collect::<Vec<(Osmid, Osmid, f64)>>();
 
-        let digraphmap: petgraph::prelude::GraphMap<OSMID, f64, Directed> =
+        let digraphmap: petgraph::prelude::GraphMap<Osmid, f64, Directed> =
             DiGraphMap::from_edges(&e_lst);
 
         Ok(Self {

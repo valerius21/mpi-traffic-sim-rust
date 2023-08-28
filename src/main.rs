@@ -1,3 +1,4 @@
+#[allow(clippy::all)]
 extern crate mpi;
 extern crate rand;
 
@@ -13,7 +14,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::graph::get_path_length;
-use crate::graph::graph::{GPartition, OSMGraph};
+use crate::graph::osm_graph::{GPartition, OSMGraph};
 use crate::models::graph_input::GraphInput;
 use crate::models::vehicle::{Moveable, Vehicle};
 use crate::prelude::*;
@@ -167,19 +168,19 @@ fn main() -> Result<()> {
                         let from = el_req.from;
                         let to = el_req.to;
 
-                        let edges = my_graph.edges_directed(from, petgraph::Direction::Outgoing);
+                        let mut edges =
+                            my_graph.edges_directed(from, petgraph::Direction::Outgoing);
 
-                        let el: f64 = match edges.filter(|e| e.1 == to).next() {
-                            Some(e) => e.2.clone(),
+                        let el: f64 = match edges.find(|e| e.1 == to) {
+                            Some(e) => *e.2,
                             None => {
                                 log::error!("[{}] No edge found for from={} to={}", rank, from, to);
                                 // NOTE: handle possible currupt algorithmic/path finding error
                                 // recalculating the way, and send the distance of the path instead of 0
-                                let cost = get_path_length(from, to, my_graph.clone());
-                                cost
+                                get_path_length(from, to, my_graph.clone())
                             }
                         };
-                        let v = vec![el.clone()];
+                        let v = vec![el];
                         world
                             .process_at_rank(status.source_rank())
                             .send_with_tag(&v[..], EDGE_LENGTH_RESPONSE);
@@ -350,7 +351,7 @@ fn process_vehicle(
                 .send_with_tag(&Vehicle::to_bytes(v).unwrap()[..], LEAF_ROOT_VEHICLE);
             break;
         }
-        v.step(&part);
+        v.step(part);
     }
     Ok(false)
 }

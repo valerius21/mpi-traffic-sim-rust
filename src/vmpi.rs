@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::models::vehicle::Vehicle;
 use crate::prelude::*;
-use crate::{graph::graph::OSMID, utils::MpiMessageContent};
+use crate::{graph::osm_graph::Osmid, utils::MpiMessageContent};
 
 // Root to leaf vehicle sending tag
 pub const ROOT_LEAF_VEHICLE: i32 = 1;
@@ -29,8 +29,8 @@ pub const ROOT_LEAF_TERMINATE: i32 = 6;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EdgeLengthRequest {
-    pub from: OSMID,
-    pub to: OSMID,
+    pub from: Osmid,
+    pub to: Osmid,
 }
 
 impl MpiMessageContent<EdgeLengthRequest> for EdgeLengthRequest {
@@ -51,7 +51,7 @@ pub fn map_vehicle_to_rank(
 ) -> Result<()> {
     let node = v.next_id;
     let r = match node_to_rank.get(&node) {
-        Some(r) => r.clone(),
+        Some(r) => *r,
         None => {
             log::warn!("[{}] No rank found for node={}, {:?}", rank, node, v);
             return Err(crate::prelude::Error::Generic(String::from(
