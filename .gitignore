@@ -2,3 +2,5 @@
 *.viz
 *.png
 *.svg
+*.log
+*.pdf

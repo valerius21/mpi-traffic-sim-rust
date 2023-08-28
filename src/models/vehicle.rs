@@ -1,4 +1,3 @@
-use crate::graph::graph::GUtils;
 use crate::streets::vehicle_builder::VehicleBuilder;
 use crate::utils::{get_random_vector_element, MpiMessageContent};
 use crate::{graph::graph::OSMGraph, prelude::*};
@@ -26,7 +25,7 @@ pub struct Vehicle {
 pub trait Moveable {
     fn drive(&mut self, graph: &OSMGraph);
     fn step(&mut self, graph: &OSMGraph);
-    fn get_next_node(&mut self, id: OSMID, graph: &OSMGraph) -> OSMID;
+    fn get_next_node(&mut self, prev_id: OSMID, current_graph: &OSMGraph) -> Option<OSMID>;
 }
 
 impl Moveable for Vehicle {
@@ -37,11 +36,33 @@ impl Moveable for Vehicle {
     }
 
     fn step(&mut self, osm_graph: &OSMGraph) {
+        log::debug!("Vehicle {} is stepping", self.id);
         if self.next_id < 0 as usize {
             self.is_parked = true;
         }
+        let gg = &osm_graph.graph;
 
-        let gg = osm_graph.get_graph();
+        // let gg = osm_graph.get_graph();
+        if !gg.contains_edge(self.prev_id, self.next_id) {
+            let old_prev = self.prev_id;
+            self.prev_id = self.next_id;
+            self.next_id = match self.get_next_node(self.next_id, &osm_graph) {
+                Some(id) => id,
+                None => {
+                    if self.marked_for_deletion || self.is_parked {
+                        self.prev_id = old_prev;
+                        return;
+                    }
+                    log::error!(
+                        "No next node found for prev_id={}, V={:?}",
+                        self.prev_id,
+                        self
+                    );
+                    self.prev_id = old_prev;
+                    self.next_id
+                }
+            }
+        }
 
         let edge = match gg
             .all_edges()
@@ -53,7 +74,14 @@ impl Moveable for Vehicle {
             .next()
         {
             Some(e) => e,
-            None => panic!("No edge found"),
+            None => panic!(
+                "No edge found {}->{}  @ {:?}",
+                self.prev_id,
+                self.next_id,
+                // gg.all_edges()
+                //     .any(|e| e.0 == self.prev_id && e.1 == self.next_id),
+                self
+            ),
         };
         let length = *edge.2;
 
@@ -70,16 +98,41 @@ impl Moveable for Vehicle {
         }
         self.delta = self.distance_remaining;
         self.distance_remaining = 0.;
-        let next_step_id = self.get_next_node(self.next_id, osm_graph);
-        if self.marked_for_deletion {
-            return;
-        } else if next_step_id == 0 {
-            self.is_parked = true;
-            return;
-        }
+        // let next_step_id = self.get_next_node(self.next_id, osm_graph);
+        // if self.marked_for_deletion {
+        //     return;
+        // }
 
+        let tmp = match self.get_next_node(self.next_id, osm_graph) {
+            Some(id) => id,
+            None => {
+                if self.marked_for_deletion {
+                    log::debug!("Vehicle {} is marked for deletion", self.id);
+                    return;
+                } else if self.is_parked
+                    || self.path_ids.last().is_some()
+                        && self.path_ids.last().unwrap() == &self.prev_id
+                {
+                    self.is_parked = true;
+                    log::info!("Vehicle {} is done driving", self.id);
+                    return;
+                } else {
+                    panic!(
+                        "No next node found for prev_id={}, V={:?}",
+                        self.prev_id, self
+                    );
+                }
+            }
+        };
+        log::debug!("Prev={} Tmp={} Next={}", self.prev_id, tmp, self.next_id);
         self.prev_id = self.next_id;
-        self.next_id = self.get_next_node(self.prev_id, osm_graph);
+        self.next_id = tmp;
+        log::debug!(
+            "Vehicle {} is stepping to {}->{}",
+            self.id,
+            self.prev_id,
+            self.next_id
+        );
 
         if self.next_id == 0 {
             self.is_parked = true;
@@ -87,36 +140,54 @@ impl Moveable for Vehicle {
         }
     }
 
-    fn get_next_node(&mut self, id: OSMID, osm_graph: &OSMGraph) -> OSMID {
-        //     var prevIdIndex = -1
-        let mut prev_id_index: isize = -1;
-
-        let length = self.path_ids.len();
-
-        for i in 0..length {
-            if self.path_ids[i] == id {
-                prev_id_index = i as isize;
-            }
-        }
-        // isLastIdx := prevIdIndex == len(v.PathIDs)-1
-        let is_last_idx = prev_id_index == (length - 1) as isize;
-
-        if self.next_id == 0 || is_last_idx || self.is_parked {
-            // if vehicle is parked nextID is not 0
+    fn get_next_node(&mut self, prev_id: OSMID, current_graph: &OSMGraph) -> Option<OSMID> {
+        // if prev_id is last element in path_ids, return None
+        if self.path_ids.last().unwrap() == &prev_id
+            || self.path_ids.get(self.path_ids.len() - 2).unwrap() == &prev_id
+        {
             self.is_parked = true;
-            return 0;
+            return None;
         }
 
-        // nextID := v.PathIDs[prevIdIndex+1]
-        let next_id = self.path_ids[(prev_id_index + 1) as usize];
+        // get the index of the next id, which is the index of prev_id + 1
+        let next_id_index = match self.path_ids.iter().position(|&x| x == prev_id) {
+            Some(i) => i + 1,
+            None => {
+                log::error!("No next id found for prev_id={}", prev_id);
+                return None;
+            }
+        };
 
-        if !osm_graph.get_graph().contains_node(next_id) {
-            // III.9.2
+        // check if next_id_index is out of bounds
+        if next_id_index >= self.path_ids.len() {
+            log::error!(
+                "next_id_index={} is out of bounds for path_ids.len()={}",
+                next_id_index,
+                self.path_ids.len()
+            );
+            return None;
+        }
+
+        // get the next id
+        let next_id = self.path_ids[next_id_index];
+        log::debug!("prev_id={} next_id={}", self.prev_id, next_id);
+
+        // check if next_id is in the current graph, if not return None and mark for deletion
+        let cg = current_graph.graph.clone();
+        if !cg.nodes().any(|x| x == next_id) {
+            log::debug!(
+                "next_id={} is not in current graph. Marking VID={} for deletion",
+                next_id,
+                self.id
+            );
             self.marked_for_deletion = true;
-            return 0;
+            // WARN: skipping ids?
+            self.prev_id = next_id;
+            self.next_id = self.path_ids[next_id_index + 1];
+            return None;
         }
 
-        next_id
+        Some(next_id)
     }
 }
 
@@ -142,7 +213,7 @@ impl Vehicle {
         let mut path = None;
         let mut path_length = 0;
 
-        while path.is_none() || path_length < 2 {
+        while path.is_none() || path_length < 5 {
             let start = match get_random_vector_element(&vtx) {
                 Some(v) => v.clone(),
                 None => Err(Error::Generic(String::from("No random vertex found")))?,

@@ -12,6 +12,7 @@ mod utils;
 use core::panic;
 use std::collections::HashMap;
 
+use crate::graph::get_path_length;
 use crate::graph::graph::{GPartition, GUtils, OSMGraph};
 use crate::mmpi::*;
 use crate::models::graph_input::GraphInput;
@@ -33,13 +34,21 @@ struct Args {
     /// Number of vehicles to simulate
     #[arg(short, long, default_value = "10")]
     number_of_vehicles: usize,
+
+    /// Set Debug Logging
+    #[arg(short, long, default_value = "false")]
+    debug: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    simple_logger::init_with_level(Level::Debug).unwrap();
     let args = Args::parse();
     let number_of_vehicles = args.number_of_vehicles;
+    if args.debug {
+        simple_logger::init_with_level(Level::Debug).unwrap();
+    } else {
+        simple_logger::init_with_level(Level::Info).unwrap();
+    }
 
     // mpi setup
     let universe = mpi::initialize().unwrap();
@@ -77,7 +86,6 @@ async fn main() -> Result<()> {
 
             for r in 1..size {
                 let rr: usize = r.try_into().unwrap();
-                // ! FIXME it does not contain all nodes
                 let part = osm_graph.partition(partitions, rr - 1)?;
 
                 for node in part.graph.nodes() {
@@ -129,7 +137,6 @@ async fn main() -> Result<()> {
                                     rank,
                                     err
                                 );
-                                // ! FIXME vehicles get lost due to hashmap errors above
                                 continue;
                             }
                         }
@@ -137,18 +144,42 @@ async fn main() -> Result<()> {
                     EDGE_LENGTH_REQUEST => {
                         log::debug!("Received edge length request");
                         let el_req = EdgeLengthRequest::from_bytes(msg).unwrap();
-                        let el = my_graph.edges(el_req.from).find(|e| e.1 == el_req.to);
-                        match el {
-                            Some(el) => {
-                                let v = vec![el.2.clone()];
-                                world
-                                    .process_at_rank(status.source_rank())
-                                    .send_with_tag(&v[..], EDGE_LENGTH_RESPONSE);
-                            }
+                        let from = el_req.from;
+                        let to = el_req.to;
+
+                        let edges = my_graph.edges_directed(from, petgraph::Direction::Outgoing);
+
+                        let el: f64 = match edges.filter(|e| e.1 == to).next() {
+                            Some(e) => e.2.clone(),
                             None => {
-                                log::error!("[{}] Emtpy edge length -> {:#?}", rank, el_req);
+                                log::error!("[{}] No edge found for from={} to={}", rank, from, to);
+                                // NOTE: handle possible currupt algorithmic/path finding error
+                                // recalculating the way, and send the distance of the path instead of 0
+                                let cost = get_path_length(from, to, my_graph.clone());
+                                cost
                             }
-                        }
+                        };
+                        let v = vec![el.clone()];
+                        world
+                            .process_at_rank(status.source_rank())
+                            .send_with_tag(&v[..], EDGE_LENGTH_RESPONSE);
+
+                        // match el {
+                        //     Some(el) => {
+                        //         let v = vec![el.2.clone()];
+                        //         world
+                        //             .process_at_rank(status.source_rank())
+                        //             .send_with_tag(&v[..], EDGE_LENGTH_RESPONSE);
+                        //     }
+                        //     None => {
+                        //         log::debug!(
+                        //             "[{}] #Edges: {:?}",
+                        //             rank,
+                        //             my_graph.all_edges().count()
+                        //         );
+                        //         log::error!("[{}] Emtpy edge length -> {:#?}", rank, el_req);
+                        //     }
+                        // }
                     }
                     _ => {
                         log::error!(
@@ -186,7 +217,7 @@ async fn main() -> Result<()> {
                             v.id
                         );
 
-                        if v.next_id == 0 || v.is_parked {
+                        if v.is_parked || v.prev_id == v.next_id {
                             // vehicle is done
                             log::info!("[{}] Vehicle {} is done driving", rank, v.id);
                             continue;
@@ -200,7 +231,13 @@ async fn main() -> Result<()> {
                             from: v.prev_id,
                             to: v.next_id,
                         };
-                        let buf = EdgeLengthRequest::to_bytes(el_req).unwrap();
+                        let buf = EdgeLengthRequest::to_bytes(el_req.clone()).unwrap();
+                        log::debug!(
+                            "[{}] Sending edge length request, {:?} @ {:?}",
+                            rank,
+                            el_req,
+                            v
+                        );
                         world
                             .process_at_rank(0)
                             .send_with_tag(&buf[..], EDGE_LENGTH_REQUEST);
@@ -212,9 +249,14 @@ async fn main() -> Result<()> {
 
                         // II.5
                         v.delta += el_msg[0];
-                        // drive vehicle
-                        v.prev_id = v.get_next_node(v.prev_id, &part);
-                        v.next_id = v.get_next_node(v.prev_id, &part);
+
+                        log::debug!(
+                            "[{}] Vehicle {} is driving from {} to {}",
+                            rank,
+                            v.id,
+                            v.prev_id,
+                            v.next_id
+                        );
 
                         loop {
                             if v.is_parked {
@@ -222,6 +264,7 @@ async fn main() -> Result<()> {
                                 log::info!("[{}] Vehicle {} is done driving", rank, v.id);
                                 break;
                             } else if v.marked_for_deletion {
+                                log::debug!("[{}] Sending vehicle {} to root", rank, v.id);
                                 // send vehicle to root
                                 world.process_at_rank(0).send_with_tag(
                                     &Vehicle::to_bytes(v).unwrap()[..],
@@ -239,28 +282,5 @@ async fn main() -> Result<()> {
             }
         }
     };
-
-    // // * NOTE: tokio has it's own scheduler
-    // let mut handles = vec![];
-
-    // for _ in 0..100 {
-    //     let osm_graph_clone = osm_graph.clone();
-    //     let my_graph_clone = my_graph.clone();
-
-    //     // FIXME: error handling
-    //     let handle = tokio::spawn(async move {
-    //         let mut v = Vehicle::generate_default(&my_graph_clone).unwrap();
-    //         v.drive(&osm_graph_clone); // Match on enum mark4del / is_parked?
-    //                                    // log::info!("[{}] finished driving", v.id);
-    //     });
-
-    //     handles.push(handle);
-    // }
-
-    // // Await all tasks to complete
-    // for handle in handles {
-    //     handle.await.unwrap();
-    // }
-
     Ok(())
 }

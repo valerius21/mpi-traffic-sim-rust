@@ -21,7 +21,7 @@ pub const EDGE_LENGTH_REQUEST: i32 = 0x03;
 // Root responds to leaf with edge length
 pub const EDGE_LENGTH_RESPONSE: i32 = 0x04;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EdgeLengthRequest {
     pub from: OSMID,
     pub to: OSMID,
@@ -43,11 +43,11 @@ pub fn map_vehicle_to_rank(
     rank: i32,
     world: SystemCommunicator,
 ) -> Result<()> {
-    let node = v.prev_id;
+    let node = v.next_id;
     let r = match node_to_rank.get(&node) {
         Some(r) => r.clone(),
         None => {
-            log::warn!("[{}] No rank found for node {}", rank, node);
+            log::warn!("[{}] No rank found for node={}, {:?}", rank, node, v);
             return Err(crate::prelude::Error::Generic(String::from(
                 "No rank found for node",
             )));
