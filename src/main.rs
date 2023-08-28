@@ -3,11 +3,10 @@ extern crate rand;
 
 mod error;
 mod graph;
-mod mmpi;
 mod models;
 mod prelude;
-mod streets;
 mod utils;
+mod vmpi;
 use core::panic;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -15,11 +14,11 @@ use std::thread;
 
 use crate::graph::get_path_length;
 use crate::graph::graph::{GPartition, OSMGraph};
-use crate::mmpi::*;
 use crate::models::graph_input::GraphInput;
 use crate::models::vehicle::{Moveable, Vehicle};
 use crate::prelude::*;
 use crate::utils::MpiMessageContent;
+use crate::vmpi::*;
 use clap::Parser;
 use log::Level;
 use mpi::point_to_point::Status;

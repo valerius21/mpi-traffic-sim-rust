@@ -1,4 +1,4 @@
-use crate::streets::vehicle_builder::VehicleBuilder;
+use crate::graph::graph::OSMID;
 use crate::utils::{get_random_vector_element, MpiMessageContent};
 use crate::{graph::graph::OSMGraph, prelude::*};
 use bincode::{deserialize, serialize};
@@ -8,7 +8,7 @@ use petgraph::Directed;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-type OSMID = usize;
+use super::vehicle_builder::VehicleBuilder;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Vehicle {
@@ -41,17 +41,16 @@ impl Moveable for Vehicle {
         if self.next_id < 0 as usize {
             self.is_parked = true;
         }
-        let gg = &osm_graph.graph;
 
-        // let gg = osm_graph.get_graph();
+        let gg = &osm_graph.graph;
         if !gg.contains_edge(self.prev_id, self.next_id) {
             let old_prev = self.prev_id;
             self.prev_id = self.next_id;
             self.next_id = match self.get_next_node(self.next_id, &osm_graph) {
                 Some(id) => id,
                 None => {
+                    self.prev_id = old_prev;
                     if self.marked_for_deletion || self.is_parked {
-                        self.prev_id = old_prev;
                         return;
                     }
                     log::error!(
@@ -59,29 +58,20 @@ impl Moveable for Vehicle {
                         self.prev_id,
                         self
                     );
-                    self.prev_id = old_prev;
                     self.next_id
                 }
             }
         }
 
         let edge = match gg
-            .all_edges()
-            .filter(|e| {
-                let from = e.0;
-                let to = e.1;
-                return from == self.prev_id && to == self.next_id;
-            })
+            .edges_directed(self.prev_id, petgraph::Direction::Outgoing)
+            .filter(|e| e.1 == self.next_id)
             .next()
         {
             Some(e) => e,
             None => panic!(
                 "No edge found {}->{}  @ {:?}",
-                self.prev_id,
-                self.next_id,
-                // gg.all_edges()
-                //     .any(|e| e.0 == self.prev_id && e.1 == self.next_id),
-                self
+                self.prev_id, self.next_id, self
             ),
         };
         let length = *edge.2;

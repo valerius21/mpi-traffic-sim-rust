@@ -14,6 +14,7 @@ pub struct OSMGraph {
     pub graph: petgraph::prelude::GraphMap<OSMID, f64, Directed>,
 }
 
+// Graph Partitioning trait
 pub trait GPartition {
     // n => number of partitions
     // i => index of partition
@@ -21,6 +22,7 @@ pub trait GPartition {
     fn partition(&self, n: usize, i: usize) -> Result<OSMGraph>;
 }
 
+// Helper function to determine the rect for a given graph
 fn determine_rects(target_graph: &OSMGraph, n: usize, i: usize) -> Result<OSMGraph> {
     let vtx_lst = target_graph.osm.vertices.clone();
     let rect = Rect::new(vtx_lst.clone())?;
