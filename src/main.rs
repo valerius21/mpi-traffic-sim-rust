@@ -12,7 +12,6 @@ mod utils;
 use core::panic;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 use crate::graph::get_path_length;
 use crate::graph::graph::{GPartition, GUtils, OSMGraph};
@@ -49,7 +48,8 @@ struct Args {
     error_rate: f64,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Args::parse();
     let number_of_vehicles = args.number_of_vehicles;
     let error_rate = args.error_rate;
@@ -233,7 +233,7 @@ fn main() -> Result<()> {
                     ROOT_LEAF_VEHICLE => {
                         let o_data = Arc::clone(&mm);
 
-                        thread::spawn(move || {
+                        tokio::spawn(async move {
                             let lock = o_data.lock().unwrap();
                             let cont = process_vehicle(world, rank, &lock, msg, status);
                             match cont {

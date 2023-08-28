@@ -26,4 +26,5 @@ simple_logger = "4.0"
 # Graph
 petgraph = { version = "0.6", features = ["serde-1"] }
 # concurrency
+tokio = { version = "1.32", features = ["full"] }
 rayon = "1.7"
