@@ -12,9 +12,18 @@ pub struct Cli {
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum Commands {
+    /// Run the simulation with the partitioned graph
     GraphParts {
         /// Path of the JSON file for the Graph
         input_file: PathBuf,
+
+        /// Mininum Vehicle Speed in m/s
+        #[arg(long, default_value = "8.5")]
+        min_speed: f64,
+
+        /// Maximum Vehicle Speed in m/s
+        #[arg(long, default_value = "13.8")]
+        max_speed: f64,
 
         /// Whether to run it sequential or parallel
         #[arg(short, long, default_value_t=Parallelism::SingleThreaded, value_enum)]

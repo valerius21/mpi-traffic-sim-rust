@@ -15,3 +15,8 @@ pub fn get_random_vector_element<T>(v: &Vec<T>) -> Option<&T> {
 }
 
 pub const MAX_NUMBER_OF_VEHICLES: usize = usize::MAX / 2;
+
+pub fn random_velocity(min: f64, max: f64) -> f64 {
+    let mut rng = rand::thread_rng();
+    rng.gen_range(min..=max)
+}

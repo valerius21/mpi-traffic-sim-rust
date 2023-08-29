@@ -61,6 +61,8 @@ pub async fn run(cli: Cli) -> Result<()> {
             thread_runtime,
             mpi,
             error_rate,
+            min_speed,
+            max_speed,
         } => {
             setup_logging(logging_level);
 
@@ -113,6 +115,8 @@ pub async fn run(cli: Cli) -> Result<()> {
                             partitions,
                             &osm_graph,
                             &my_graph,
+                            min_speed,
+                            max_speed,
                         )?;
                     }
                     rank_number => {
@@ -169,7 +173,8 @@ pub async fn run(cli: Cli) -> Result<()> {
                 match parallelism {
                     Parallelism::SingleThreaded => {
                         for _ in 0..num_vehicles {
-                            let mut v = Vehicle::generate_default(&my_graph).unwrap();
+                            let mut v =
+                                Vehicle::generate_default(&my_graph, min_speed, max_speed).unwrap();
 
                             v.drive(&osm_graph);
                         }
@@ -178,7 +183,9 @@ pub async fn run(cli: Cli) -> Result<()> {
                         cli::ThreadRuntime::RustThreads => {
                             let mut handles = vec![];
                             for _ in 0..num_vehicles {
-                                let mut v = Vehicle::generate_default(&my_graph).unwrap();
+                                let mut v =
+                                    Vehicle::generate_default(&my_graph, min_speed, max_speed)
+                                        .unwrap();
                                 let osm_graph = Arc::new(osm_graph.clone());
                                 let handle = thread::spawn(move || {
                                     v.drive(&osm_graph);
@@ -192,7 +199,9 @@ pub async fn run(cli: Cli) -> Result<()> {
                         cli::ThreadRuntime::Tokio => {
                             let mut handles = vec![];
                             for _ in 0..num_vehicles {
-                                let mut v = Vehicle::generate_default(&my_graph).unwrap();
+                                let mut v =
+                                    Vehicle::generate_default(&my_graph, min_speed, max_speed)
+                                        .unwrap();
                                 let osm_graph = Arc::new(osm_graph.clone());
                                 let handle = tokio::spawn(async move {
                                     v.drive(&osm_graph);
@@ -223,6 +232,8 @@ fn root_event_loop(
     partitions: usize,
     osm_graph: &OSMGraph,
     my_graph: &GraphMap<Osmid, f64, Directed>,
+    min_speed: f64,
+    max_speed: f64,
 ) -> Result<()> {
     let mut finished_vehicle_counter = 0;
     log::debug!("[{}] Creating NodeID->Rank mapping", rank);
@@ -250,7 +261,7 @@ fn root_event_loop(
     let mut vehicle_counter = 0;
     // send vehicles
     while vehicle_counter < num_vehicles {
-        let v = Vehicle::generate_default(my_graph).unwrap();
+        let v = Vehicle::generate_default(my_graph, min_speed, max_speed).unwrap();
 
         match map_vehicle_to_rank(v, &node_to_rank, rank, world) {
             Ok(_) => {}

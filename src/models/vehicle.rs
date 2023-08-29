@@ -1,5 +1,5 @@
 use crate::graph::osm_graph::Osmid;
-use crate::utils::{get_random_vector_element, MpiMessageContent};
+use crate::utils::{get_random_vector_element, random_velocity, MpiMessageContent};
 use crate::{graph::osm_graph::OSMGraph, prelude::*};
 use bincode::{deserialize, serialize};
 use petgraph::algo::astar;
@@ -189,7 +189,11 @@ impl MpiMessageContent<Vehicle> for Vehicle {
 }
 
 impl Vehicle {
-    pub fn generate_default(graph: &GraphMap<usize, f64, Directed>) -> Result<Vehicle> {
+    pub fn generate_default(
+        graph: &GraphMap<usize, f64, Directed>,
+        min_speed: f64,
+        max_speed: f64,
+    ) -> Result<Vehicle> {
         let vtx: Vec<_> = graph.nodes().collect();
         let mut path = None;
         let mut path_length = 0;
@@ -218,11 +222,13 @@ impl Vehicle {
             None => Err(Error::Generic(String::from("No path found")))?,
         };
 
+        let velocity = random_velocity(min_speed, max_speed);
+
         let veh = VehicleBuilder::new()
             .with_delta(0.0)
             .with_delta(0.0)
             .with_is_parked(false)
-            .with_speed(5.5)
+            .with_speed(velocity)
             .with_path_ids(path.clone())
             .with_prev_id(path[0])
             .with_next_id(path[1])
