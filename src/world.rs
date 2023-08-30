@@ -95,14 +95,14 @@ pub async fn run(cli: Cli) -> Result<()> {
                 let osm_graph = parse_input(&input_file).unwrap();
                 let my_graph = osm_graph.graph.clone();
 
-                log::info!(
+                log::debug!(
                     "[{}] Root Size ({},{})",
                     rank,
                     my_graph.node_count(),
                     my_graph.edge_count()
                 );
 
-                log::info!("[{}] Making {} partition(s)", rank, partitions);
+                log::debug!("[{}] Making {} partition(s)", rank, partitions);
                 let start = std::time::Instant::now();
                 match rank {
                     ROOT_RANK => {
@@ -124,7 +124,7 @@ pub async fn run(cli: Cli) -> Result<()> {
                         let r: usize = rank_number.try_into().unwrap();
                         let p = osm_graph.partition(partitions, r - 1)?;
 
-                        log::info!(
+                        log::debug!(
                             "[{}] Rank {} -> Size ({},{})",
                             rank,
                             r,
@@ -156,19 +156,20 @@ pub async fn run(cli: Cli) -> Result<()> {
                     }
                 };
                 let end = std::time::Instant::now();
-                log::info!("[{}] Finished in {:?}", rank, end - start);
+                log::debug!("[{}] Finished in {:?}", rank, end - start);
             } else {
                 log::debug!("Running without MPI");
                 let osm_graph = parse_input(&input_file).unwrap();
                 let my_graph = osm_graph.graph.clone();
 
-                log::info!(
+                log::debug!(
                     "Root Size ({},{})",
                     my_graph.node_count(),
                     my_graph.edge_count()
                 );
 
                 let start = std::time::Instant::now();
+                let mut step_accumulator = 0;
 
                 match parallelism {
                     Parallelism::SingleThreaded => {
@@ -177,6 +178,7 @@ pub async fn run(cli: Cli) -> Result<()> {
                                 Vehicle::generate_default(&my_graph, min_speed, max_speed).unwrap();
 
                             v.drive(&osm_graph);
+                            step_accumulator += v.steps;
                         }
                     }
                     Parallelism::MultiThreaded => match thread_runtime {
@@ -189,11 +191,13 @@ pub async fn run(cli: Cli) -> Result<()> {
                                 let osm_graph = Arc::new(osm_graph.clone());
                                 let handle = thread::spawn(move || {
                                     v.drive(&osm_graph);
+                                    v
                                 });
                                 handles.push(handle);
                             }
                             for handle in handles {
-                                handle.join().unwrap();
+                                let v = handle.join().unwrap();
+                                step_accumulator += v.steps;
                             }
                         }
                         cli::ThreadRuntime::Tokio => {
@@ -205,18 +209,25 @@ pub async fn run(cli: Cli) -> Result<()> {
                                 let osm_graph = Arc::new(osm_graph.clone());
                                 let handle = tokio::spawn(async move {
                                     v.drive(&osm_graph);
+                                    v
                                 });
                                 handles.push(handle);
                             }
                             for handle in handles {
-                                handle.await.unwrap();
+                                let v = handle.await.unwrap();
+                                step_accumulator += v.steps;
                             }
                         }
                     },
                 }
 
                 let end = std::time::Instant::now();
-                log::info!("[{}] Finished in {:?}", ROOT_RANK, end - start);
+                log::debug!("[{}] Finished in {:?}", ROOT_RANK, end - start);
+                log::info!(
+                    "Finished {} vehicles in {} steps",
+                    num_vehicles,
+                    step_accumulator
+                );
             }
             Ok(())
         }
@@ -236,6 +247,7 @@ fn root_event_loop(
     max_speed: f64,
 ) -> Result<()> {
     let mut finished_vehicle_counter = 0;
+    let mut step_accumulator = 0;
     log::debug!("[{}] Creating NodeID->Rank mapping", rank);
     // create map with nodeID->rank mapping
     let mut node_to_rank = HashMap::new();
@@ -319,12 +331,15 @@ fn root_event_loop(
                 log::debug!("[{}] Sent edge length response", rank);
             }
             LEAF_ROOT_VEHICLE_FINISH => {
+                let v = Vehicle::from_bytes(msg).unwrap();
                 finished_vehicle_counter += 1;
+                step_accumulator += v.steps;
                 if finished_vehicle_counter >= finishing_threshold {
                     log::info!(
-                        "[{}] Finished {} vehicles, terminating",
+                        "[{}] Finished {} vehicles in {} steps",
                         rank,
-                        finished_vehicle_counter
+                        finished_vehicle_counter,
+                        step_accumulator
                     );
                     for r in 1..size {
                         world
@@ -378,7 +393,7 @@ fn process_leaf_event(
             }
         }
         ROOT_LEAF_TERMINATE => {
-            log::info!("[{}] Received termination notification", rank);
+            log::debug!("[{}] Received termination notification", rank);
             return true;
         }
         // proxy edge length response
@@ -479,7 +494,7 @@ fn process_vehicle(
 
     if v.is_parked || v.prev_id == v.next_id {
         // vehicle is done
-        log::info!("[{}] - 1 Vehicle {} is done driving", rank, v.id);
+        log::debug!("[{}] - 1 Vehicle {} is done driving", rank, v.id);
         return Ok(true);
     }
 
@@ -519,15 +534,14 @@ fn process_vehicle(
     );
 
     loop {
-        log::debug!("Vehicle {} is driving", v.id);
+        log::debug!("[{}] Stepping...", v.id);
         if v.is_parked {
             // v is done
-            log::info!("[{}] Vehicle {} is done driving", rank, v.id);
+            log::debug!("[{}] Vehicle {} is done driving", rank, v.id);
             // create buffer containing the number 1
-            let buf = vec![1];
             world
                 .process_at_rank(ROOT_RANK)
-                .send_with_tag(&buf[..], LEAF_ROOT_VEHICLE_FINISH);
+                .send_with_tag(&Vehicle::to_bytes(v).unwrap()[..], LEAF_ROOT_VEHICLE_FINISH);
             break;
         } else if v.marked_for_deletion {
             log::debug!("[{}] Sending vehicle {} to root", rank, v.id);

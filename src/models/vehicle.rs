@@ -21,6 +21,7 @@ pub struct Vehicle {
     pub is_parked: bool,
     pub distance_remaining: f64,
     pub marked_for_deletion: bool,
+    pub steps: u64,
 }
 
 pub trait Moveable {
@@ -38,6 +39,7 @@ impl Moveable for Vehicle {
 
     fn step(&mut self, osm_graph: &OSMGraph) {
         log::debug!("Vehicle {} is stepping", self.id);
+        self.steps += 1;
 
         let gg = &osm_graph.graph;
         if !gg.contains_edge(self.prev_id, self.next_id) {

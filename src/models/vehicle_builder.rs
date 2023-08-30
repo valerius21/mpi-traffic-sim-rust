@@ -96,6 +96,7 @@ impl VehicleBuilder {
             is_parked: self.is_parked,
             distance_remaining: 0.0,
             marked_for_deletion: false,
+            steps: 0,
         })
     }
 }
