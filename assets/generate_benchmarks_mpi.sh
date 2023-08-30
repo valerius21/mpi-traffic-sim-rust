@@ -12,9 +12,6 @@ for N_V in "${VEHICLES[@]}"; do
 			FILE_NAME="$N_V"_"$N_T"_"$N_N"
 			MPI_RUN="mpirun -np $N_N -env TOKIO_WORKER_THREADS=$N_T ./target/release/traffic-sim graph-parts -n $N_V -p multi-threaded --mpi -l info -t tokio assets/graph.json >> ./benchmark/$FILE_NAME.log"
 			hyperfine --warmup=$WARUMPS --min-runs=$RUNS --max-runs=$RUNS --time-unit=millisecond --export-csv=./benchmark/$FILE_NAME.csv "$MPI_RUN"
-			break
 		done
-		break
 	done
-	break
 done
