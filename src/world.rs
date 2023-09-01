@@ -156,7 +156,8 @@ pub async fn run(cli: Cli) -> Result<()> {
                     }
                 };
                 let end = std::time::Instant::now();
-                log::debug!("[{}] Finished in {:?}", rank, end - start);
+                let time = end - start;
+                log::info!("[{}] Finished in {:?} microseconds", rank, time.as_micros());
             } else {
                 log::debug!("Running without MPI");
                 let osm_graph = parse_input(&input_file).unwrap();
@@ -222,7 +223,12 @@ pub async fn run(cli: Cli) -> Result<()> {
                 }
 
                 let end = std::time::Instant::now();
-                log::debug!("[{}] Finished in {:?}", ROOT_RANK, end - start);
+                let time = end - start;
+                log::info!(
+                    "[{}] Finished in {:?} microseconds",
+                    ROOT_RANK,
+                    time.as_micros()
+                );
                 log::info!(
                     "Finished {} vehicles in {} steps",
                     num_vehicles,
