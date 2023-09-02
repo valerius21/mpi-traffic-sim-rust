@@ -32,7 +32,7 @@ for ((i=0; i<={RUNS}; i+=1)); do
 done
         '''
 
-        with open(f'./{FILE_NAME}.sh', 'w', encoding='utf8') as f:
+        with open(f'./opt_{FILE_NAME}.sh', 'w', encoding='utf8') as f:
             f.write(tmpl)
             print('=====',FILE_NAME,'=====')
 
