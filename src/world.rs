@@ -449,8 +449,16 @@ fn mpi_drive(
     o_data: Arc<Mutex<OSMGraph>>,
 ) {
     let msg = msg.to_owned();
+    let o_data_clone = o_data.clone();
+
     thread::spawn(move || {
-        let lock = o_data.lock().unwrap();
+        let lock = match o_data_clone.lock() {
+            Ok(lock) => lock,
+            Err(err) => {
+                log::error!("[{}] Error while locking data: {:?}", rank, err);
+                return false;
+            }
+        };
         let cont = process_vehicle(world, rank, &lock, msg, status);
         match cont {
             Ok(cont) => cont,

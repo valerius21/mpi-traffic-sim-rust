@@ -6,3 +6,5 @@
 *.pdf
 /.idea
 /benchmark
+/assets/benchmarking/*.sh
+
