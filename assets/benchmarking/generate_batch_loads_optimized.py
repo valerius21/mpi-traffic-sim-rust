@@ -1,6 +1,6 @@
 RUNS = 100
 WARM_UPS = 5
-TIMEOUT = '600:00'
+TIMEOUT = '15:00'
 VEHICLES=[1, 10, 100, 1000, 10000]
 NODES=[2,4,6,8]
 BASE_DIR = '/usr/users/hpctraining57/mpi-traffic-sim-rust'
