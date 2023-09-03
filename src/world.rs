@@ -502,7 +502,7 @@ fn mpi_tokio_drive(
                 Ok(cont) => cont,
                 Err(err) => {
                     log::error!("[{}] Error while processing vehicle: {:?}", rank, err);
-                    true
+                    false
                 }
             }
         })
@@ -512,7 +512,7 @@ fn mpi_tokio_drive(
         Ok(join_handle) => join_handle,
         Err(_) => {
             log::error!("Error while spawning tokio task");
-            tokio::spawn(async { true })
+            tokio::spawn(async { false })
         }
     }
 }
