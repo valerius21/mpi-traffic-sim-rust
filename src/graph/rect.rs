@@ -17,7 +17,9 @@ pub(crate) struct Rect {
 impl Rect {
     pub fn new(vertices: Vec<Vertex>) -> Result<Rect> {
         if vertices.is_empty() {
-            return Err(Error::EmptyVector(String::from("Empty Vector")));
+            return Err(Error::EmptyVector(String::from(
+                "Vertices vector is empty. Cannot create a rectangle without vertices.",
+            )));
         }
 
         let mut rr = Rect {
@@ -33,15 +35,16 @@ impl Rect {
     // NOTE: Determines if a vertex is in a rect by x value only
     pub fn in_rect(&self, v: Vertex) -> bool {
         let x = v.x;
-        self.bottom_left.x <= x && x <= self.top_right.x
+        let buffer = 1e-9;
+        self.bottom_left.x - buffer <= x && x < self.top_right.x + buffer
     }
 
     pub fn set_top_right_bottom_left(mut self) -> Self {
         let vtx_lst = self.vertices.clone();
 
         // set to oppisite sites
-        let mut bot_y = 100.0;
-        let mut bot_x = 100.0;
+        let mut bot_y = f64::MAX;
+        let mut bot_x = f64::MAX;
         let mut top_x = 0.0;
         let mut top_y = 0.0;
 

@@ -101,14 +101,22 @@ impl GPartition for OSMGraph {
             }
         }
 
-        if i == 0 {
-            // add the difference to the first graph
-            // HACK: maybe round-robin the difference to all graphs for an even workload
-            let mut g = graphs[0].clone();
-            for v in diff {
-                g.graph.add_node(v);
+        // Post-Partition Validation
+        let mut all_nodes: HashSet<Osmid> = self.graph.nodes().collect();
+        for g in &graphs {
+            for node in g.graph.nodes() {
+                all_nodes.remove(&node);
             }
-            return Ok(g);
+        }
+
+        // Handle Missing Nodes
+        if !all_nodes.is_empty() {
+            // For simplicity, adding missing nodes to the first partition
+            // TODO: Adjust this to add to the nearest partition based on x-coordinate
+            let first_partition = &mut graphs[0];
+            for missing_node in all_nodes {
+                first_partition.graph.add_node(missing_node);
+            }
         }
 
         Ok(graphs[i].clone())
