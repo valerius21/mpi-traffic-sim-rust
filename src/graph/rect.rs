@@ -69,3 +69,70 @@ impl Rect {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_in_rect() {
+        let rect = Rect::new(vec![
+            Vertex {
+                x: 1.0,
+                y: 1.0,
+                osm_id: 1,
+            },
+            Vertex {
+                x: 2.0,
+                y: 2.0,
+                osm_id: 2,
+            },
+            Vertex {
+                x: 3.0,
+                y: 3.0,
+                osm_id: 3,
+            },
+        ])
+        .unwrap();
+
+        assert!(rect.in_rect(Vertex {
+            x: 1.0,
+            y: 1.0,
+            osm_id: 1
+        }));
+        assert!(!rect.in_rect(Vertex {
+            x: 4.0,
+            y: 4.0,
+            osm_id: 4
+        }));
+    }
+
+    #[test]
+    fn test_set_top_right_bottom_left() {
+        let mut rect = Rect::new(vec![
+            Vertex {
+                x: 1.0,
+                y: 1.0,
+                osm_id: 1,
+            },
+            Vertex {
+                x: 2.0,
+                y: 2.0,
+                osm_id: 2,
+            },
+            Vertex {
+                x: 3.0,
+                y: 3.0,
+                osm_id: 3,
+            },
+        ])
+        .unwrap();
+
+        rect = rect.set_top_right_bottom_left();
+
+        assert_eq!(rect.bottom_left.x, 1.0);
+        assert_eq!(rect.bottom_left.y, 1.0);
+        assert_eq!(rect.top_right.x, 3.0);
+        assert_eq!(rect.top_right.y, 3.0);
+    }
+}

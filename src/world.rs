@@ -41,11 +41,16 @@ fn setup_logging(level: cli::LoggingLevel) {
     simple_logger::init_with_level(level).unwrap();
 }
 
-fn parse_input(input_file: &PathBuf) -> Result<OSMGraph> {
+pub fn get_gi_from_input_file(input_file: &PathBuf) -> Result<GraphInput> {
     // open input file
     let input_file = std::fs::File::open(input_file)?;
     // read input data for gprah
     let model: GraphInput = serde_json::from_reader(input_file).unwrap();
+    Ok(model)
+}
+
+pub fn parse_input(input_file: &PathBuf) -> Result<OSMGraph> {
+    let model = get_gi_from_input_file(input_file)?;
     // bootstrap the root graph
     OSMGraph::new(model.graph)
 }
