@@ -328,9 +328,15 @@ fn root_event_loop(
                 let el: f64 = match edges.find(|e| e.1 == to) {
                     Some(e) => *e.2,
                     None => {
-                        log::error!("[{}] No edge found for from={} to={}", rank, from, to);
-                        // NOTE: handle possible currupt algorithmic/path finding error
-                        // recalculating the way, and send the distance of the path instead of 0
+                        log::debug!(
+                            "[{}] No edge found for from={} to={}. Recalculating the path.",
+                            rank,
+                            from,
+                            to
+                        );
+                        // NOTE: recalculating the way, and send the distance of the path instead of 0; This is a hack
+                        // The graph and the provided data can be inconsistent, due to inprecise
+                        // annotations in the OSM data
                         get_path_length(from, to, my_graph.clone())
                     }
                 };
@@ -483,17 +489,32 @@ fn mpi_tokio_drive(
     o_data: Arc<Mutex<OSMGraph>>,
 ) -> JoinHandle<bool> {
     let msg = msg.to_owned();
-    tokio::spawn(async move {
-        let lock = o_data.lock().unwrap();
-        let cont = process_vehicle(world, rank, &lock, msg.clone(), status);
-        match cont {
-            Ok(cont) => cont,
-            Err(err) => {
-                log::error!("[{}] Error while processing vehicle: {:?}", rank, err);
-                false
+
+    let result = std::panic::catch_unwind(|| {
+        tokio::spawn(async move {
+            let lock_result = o_data.lock();
+            let lock = match lock_result {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            let cont = process_vehicle(world, rank, &lock, msg.clone(), status);
+            match cont {
+                Ok(cont) => cont,
+                Err(err) => {
+                    log::error!("[{}] Error while processing vehicle: {:?}", rank, err);
+                    true
+                }
             }
+        })
+    });
+
+    match result {
+        Ok(join_handle) => join_handle,
+        Err(_) => {
+            log::error!("Error while spawning tokio task");
+            tokio::spawn(async { true })
         }
-    })
+    }
 }
 
 fn process_vehicle(

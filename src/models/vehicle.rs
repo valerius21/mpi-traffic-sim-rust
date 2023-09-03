@@ -67,10 +67,16 @@ impl Moveable for Vehicle {
             .find(|e| e.1 == self.next_id)
         {
             Some(e) => e,
-            None => panic!(
-                "No edge found {}->{}  @ {:?}",
-                self.prev_id, self.next_id, self
-            ),
+            None => {
+                self.marked_for_deletion = true;
+                log::debug!(
+                    "No edge found {}->{}  @ {:?} while stepping. Marking for deletion",
+                    self.prev_id,
+                    self.next_id,
+                    self.id,
+                );
+                return;
+            }
         };
         let length = *edge.2;
 
