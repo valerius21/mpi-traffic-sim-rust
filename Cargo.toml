@@ -12,6 +12,9 @@ authors = [
 ]
 readme = "./README.md"
 
+[features]
+complex-calculation = []
+
 [dependencies]
 # basics
 clap = { version = "4.3.23", features = ["derive"] }

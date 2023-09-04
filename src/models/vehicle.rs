@@ -42,11 +42,12 @@ impl Moveable for Vehicle {
     fn calculate_step(&mut self) {
         // NOTE: adding CPU-intensive placeholder function simulating a complex calculation by
         // generating a random prime number
-
-        let mut rng = rand::thread_rng();
-        let number = rng.gen_range(1_000_000..=3_000_000);
-        let _some_unused_prime = primal::Primes::all().nth(number).unwrap();
-
+        #[cfg(feature = "complex-calculation")]
+        {
+            let mut rng = rand::thread_rng();
+            let number = rng.gen_range(1_000_000..=3_000_000);
+            let _some_unused_prime = primal::Primes::all().nth(number).unwrap();
+        }
         // WARN: Actually crucial code. Do not remove.
         self.distance_remaining -= self.speed;
     }
