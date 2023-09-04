@@ -44,7 +44,7 @@ impl Moveable for Vehicle {
         #[cfg(feature = "complex-calculation")]
         {
             let mut rng = rand::thread_rng();
-            let number = rng.gen_range(1_000_000..=3_000_000);
+            let number = rand::Rng::gen_range(&mut rng, 1_000_000..=3_000_000);
             let _some_unused_prime = primal::Primes::all().nth(number).unwrap();
         }
         // WARN: Actually crucial code. Do not remove.
