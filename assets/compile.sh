@@ -10,6 +10,6 @@ echo "[prepare hpc] Done."
 
 cd ~/mpi-traffic-sim-rust &&
 	rm -rf target &&
-	cargo build --release --features complex-computing &&
+	cargo build --release --features complex-calculation &&
 	mv -rv target/release target/cc &&
 	cargo build --release
