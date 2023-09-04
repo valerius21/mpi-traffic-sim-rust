@@ -5,6 +5,7 @@ use bincode::{deserialize, serialize};
 use petgraph::algo::astar;
 use petgraph::prelude::GraphMap;
 use petgraph::Directed;
+use rand::Rng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -28,6 +29,7 @@ pub trait Moveable {
     fn drive(&mut self, graph: &OSMGraph);
     fn step(&mut self, graph: &OSMGraph);
     fn get_next_node(&mut self, prev_id: Osmid, current_graph: &OSMGraph) -> Option<Osmid>;
+    fn calculate_step(&mut self);
 }
 
 impl Moveable for Vehicle {
@@ -35,6 +37,18 @@ impl Moveable for Vehicle {
         while !self.is_parked {
             self.step(osm_graph);
         }
+    }
+
+    fn calculate_step(&mut self) {
+        // NOTE: adding CPU-intensive placeholder function simulating a complex calculation by
+        // generating a random prime number
+
+        let mut rng = rand::thread_rng();
+        let number = rng.gen_range(1_000_000..=3_000_000);
+        let _some_unused_prime = primal::Primes::all().nth(number).unwrap();
+
+        // WARN: Actually crucial code. Do not remove.
+        self.distance_remaining -= self.speed;
     }
 
     fn step(&mut self, osm_graph: &OSMGraph) {
@@ -89,7 +103,7 @@ impl Moveable for Vehicle {
         // *        Maybe change to "if"
         while (self.distance_remaining >= self.speed) && (self.distance_remaining - self.speed > 0.)
         {
-            self.distance_remaining -= self.speed;
+            self.calculate_step();
         }
         self.delta = self.distance_remaining;
         self.distance_remaining = 0_f64;

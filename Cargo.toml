@@ -6,7 +6,10 @@ description = "A traffic simulation using MPI and Rust"
 homepage = "https://github.com/valerius21/traffic-sim"
 repository = "https://github.com/valerius21/traffic-sim"
 license = "MIT"
-authors = ["Valerius Mattfeld <mail@valerius.me>", "Bianca Vetter <bianca.vetter@tutanota.com>"]
+authors = [
+  "Valerius Mattfeld <mail@valerius.me>",
+  "Bianca Vetter <bianca.vetter@tutanota.com>",
+]
 readme = "./README.md"
 
 [dependencies]
@@ -16,6 +19,8 @@ mpi = { version = "0.6", features = ["user-operations", "derive"] }
 thiserror = "^1.0.47"
 nanoid = "0.4.0"
 rand = "0.8"
+# For CPU intensive tasks
+primal = "0.3.2"
 # Serialization / Deserialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "^1.0"
