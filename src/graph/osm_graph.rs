@@ -8,8 +8,8 @@ use super::rect::Rect;
 
 pub type Osmid = usize;
 
-// Define a structure called `OSMGraph` that represents an OpenStreetMap (OSM) graph.
-// It contains the OSM data and a directed graph for representing connections between nodes.
+/// Define a structure called `OSMGraph` that represents an OpenStreetMap (OSM) graph.
+/// It contains the OSM data and a directed graph for representing connections between nodes.
 #[derive(Debug, Default, Clone)]
 pub struct OSMGraph {
     osm: GI,
@@ -81,7 +81,6 @@ fn determine_rects(target_graph: &OSMGraph, n: usize, i: usize) -> Result<OSMGra
 }
 
 impl GPartition for OSMGraph {
-    // Implement the `partition` method for the `GPartition` trait.
     fn partition(&self, n: usize, i: usize) -> Result<OSMGraph> {
         // Create a vector to store all possible sub-graphs (rectangles).
         let mut graphs = Vec::<OSMGraph>::new();

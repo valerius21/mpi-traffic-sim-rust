@@ -17,7 +17,7 @@ pub(crate) struct Rect {
     pub vertices: Vec<Vertex>,
 }
 
-// Implementation block for Rect
+/// Implementation block for Rect
 impl Rect {
     pub fn new(vertices: Vec<Vertex>) -> Result<Rect> {
         if vertices.is_empty() {

@@ -10,24 +10,40 @@ use serde::{Deserialize, Serialize};
 
 use super::vehicle_builder::VehicleBuilder;
 
+/// Represents a vehicle that can move within a graph.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Vehicle {
+    /// The unique identifier of the vehicle.
     pub id: String,
+    /// The path IDs representing the route the vehicle follows.
     pub path_ids: Vec<Osmid>,
+    /// The speed of the vehicle.
     pub speed: f64,
+    /// The delta value for the vehicle.
     pub delta: f64,
+    /// The next path ID the vehicle is moving toward.
     pub next_id: Osmid,
+    /// The previous path ID the vehicle was at.
     pub prev_id: Osmid,
+    /// Indicates whether the vehicle is parked.
     pub is_parked: bool,
+    /// The remaining distance the vehicle has to travel.
     pub distance_remaining: f64,
+    /// Indicates whether the vehicle is marked for deletion.
     pub marked_for_deletion: bool,
+    /// The number of steps the vehicle has taken.
     pub steps: u64,
 }
 
+/// A trait for moveable objects.
 pub trait Moveable {
+    /// Drives the moveable object within a graph.
     fn drive(&mut self, graph: &OSMGraph);
+    /// Takes a step for the moveable object.
     fn step(&mut self, graph: &OSMGraph);
+    /// Gets the next node for the moveable object.
     fn get_next_node(&mut self, prev_id: Osmid, current_graph: &OSMGraph) -> Option<Osmid>;
+    /// Calculates the step for the moveable object.
     fn calculate_step(&mut self);
 }
 
@@ -211,6 +227,7 @@ impl MpiMessageContent<Vehicle> for Vehicle {
 }
 
 impl Vehicle {
+    /// Generates a default vehicle with a random route and speed within a given graph.
     pub fn generate_default(
         graph: &GraphMap<usize, f64, Directed>,
         min_speed: f64,
@@ -247,7 +264,6 @@ impl Vehicle {
         let velocity = random_velocity(min_speed, max_speed);
 
         let veh = VehicleBuilder::new()
-            .with_delta(0.0)
             .with_delta(0.0)
             .with_is_parked(false)
             .with_speed(velocity)
