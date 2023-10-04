@@ -8,7 +8,7 @@ BASE_DIR = '/usr/users/hpctraining57/mpi-traffic-sim-rust'
 for vehicle_load in VEHICLES:
     for node_number in NODES:
         worker_number  = node_number * 24
-        FILE_NAME = f'cc_single_{node_number}_{worker_number}_{vehicle_load}'
+        FILE_NAME = f'cc_multi_{node_number}_{worker_number}_{vehicle_load}'
         head_template = f'''#!/bin/bash
 #SBATCH -p medium
 #SBATCH -n {worker_number}
