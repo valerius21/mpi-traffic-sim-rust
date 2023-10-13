@@ -1,3 +1,5 @@
+"""This script generates a batch of slurm scripts for the cc benchmarking"""
+
 RUNS = 10
 WARM_UPS = 2
 TIMEOUT = '120:00'
@@ -5,8 +7,6 @@ VEHICLES=[1, 10, 100, 1000, 10000]
 WORKER_THREADS=[2, 4, 8, 16, 32]
 NODES=[2,3,4,5,10,15,19]
 BASE_DIR = '/usr/users/hpctraining57/mpi-traffic-sim-rust'
-
-# TODO: create optimized worker threads combinations
 
 for vehicle_load in VEHICLES:
     for worker_number in WORKER_THREADS:

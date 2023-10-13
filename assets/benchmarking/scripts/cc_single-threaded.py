@@ -1,3 +1,5 @@
+"""Generate slurm scripts for single threaded cc benchmarking."""
+
 RUNS = 10
 WARM_UPS = 2
 TIMEOUT = '120:00'

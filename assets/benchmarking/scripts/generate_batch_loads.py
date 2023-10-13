@@ -1,3 +1,7 @@
+"""
+Creates a batch script for each vehicle load and node number combination
+"""
+
 RUNS = 10
 WARM_UPS = 2
 TIMEOUT = '120:00'

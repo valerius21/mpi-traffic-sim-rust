@@ -1,3 +1,8 @@
+"""
+Generates slurm scripts for multi-threaded cc benchmarking. 
+Single Node - Multi-Threaded
+"""
+
 RUNS = 10
 WARM_UPS = 2
 TIMEOUT = '120:00'

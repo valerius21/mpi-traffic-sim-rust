@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# This script prepares the HPC envirement and compiles the project.
+
 echo "[prepare hpc] Loading modules..."
 module load spack-user
 source $SPACK_USER_ROOT/share/spack/setup-env.sh
