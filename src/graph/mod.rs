@@ -1,7 +1,7 @@
 use petgraph::{algo::astar, prelude::GraphMap, Directed};
 
-pub mod osm_graph; // A submodule for OpenStreetMap-related graph functionality.
-pub mod rect;      // A submodule for handling rectangles or rectangular regions.
+pub mod osm_graph;
+pub mod rect;
 
 // This function calculates the length of the shortest path between two nodes in a directed graph.
 // Parameters:

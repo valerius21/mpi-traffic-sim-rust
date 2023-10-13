@@ -35,6 +35,7 @@ pub struct EdgeLengthRequest {
     pub to: Osmid,
 }
 
+// Message interface for inter MPI communication
 impl MpiMessageContent<EdgeLengthRequest> for EdgeLengthRequest {
     fn to_bytes(data: EdgeLengthRequest) -> Result<Vec<u8>> {
         Ok(serialize(&data)?)
@@ -45,6 +46,7 @@ impl MpiMessageContent<EdgeLengthRequest> for EdgeLengthRequest {
     }
 }
 
+// Mapping the vehicle to the next corresponsing rank
 pub fn map_vehicle_to_rank(
     v: Vehicle,
     node_to_rank: &HashMap<usize, i32>,

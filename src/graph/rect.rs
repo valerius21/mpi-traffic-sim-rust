@@ -1,4 +1,3 @@
-// Import necessary modules and items from the crate
 use crate::models::graph_input::Vertex;
 use crate::prelude::*;
 

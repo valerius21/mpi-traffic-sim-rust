@@ -30,6 +30,7 @@ use crate::{
     vmpi::*,
 };
 
+// Set up logging
 fn setup_logging(level: cli::LoggingLevel) {
     let level = match level {
         cli::LoggingLevel::Debug => log::Level::Debug,
@@ -41,6 +42,7 @@ fn setup_logging(level: cli::LoggingLevel) {
     simple_logger::init_with_level(level).unwrap();
 }
 
+// Converts the fiel from the given path into a GraphInput struct
 pub fn get_gi_from_input_file(input_file: &PathBuf) -> Result<GraphInput> {
     // open input file
     let input_file = std::fs::File::open(input_file)?;
@@ -49,6 +51,7 @@ pub fn get_gi_from_input_file(input_file: &PathBuf) -> Result<GraphInput> {
     Ok(model)
 }
 
+// Parses the input file into a OSMGraph
 pub fn parse_input(input_file: &PathBuf) -> Result<OSMGraph> {
     let model = get_gi_from_input_file(input_file)?;
     // bootstrap the root graph
@@ -245,6 +248,13 @@ pub async fn run(cli: Cli) -> Result<()> {
     }
 }
 
+// Root main event loop
+// This is the main event loop for the root process
+// 1. It is responsible for sending vehicles to the leafs and receiving them back
+// 2. It receives edge length requests from the leafs and sends the length back
+// 3. It receives termination notifications from the leafs
+// 4. Once all vehicles are done, it sends termination notifications to the leafs
+//    and then terminates itself
 fn root_event_loop(
     num_vehicles: usize,
     finishing_threshold: usize,
@@ -379,6 +389,7 @@ fn root_event_loop(
     Ok(())
 }
 
+// Handling of Events the leaf emits
 fn process_leaf_event(
     parallelism: Parallelism,
     thread_runtime: ThreadRuntime,
@@ -433,6 +444,7 @@ fn process_leaf_event(
     false
 }
 
+// Processes a vehicle
 fn single_drive(
     world: SystemCommunicator,
     rank: i32,
@@ -452,6 +464,7 @@ fn single_drive(
     }
 }
 
+// Processes a vehicle asyncronously
 fn mpi_drive(
     world: SystemCommunicator,
     rank: i32,
@@ -460,10 +473,9 @@ fn mpi_drive(
     o_data: Arc<Mutex<OSMGraph>>,
 ) {
     let msg = msg.to_owned();
-    let o_data_clone = o_data.clone();
 
     thread::spawn(move || {
-        let lock = match o_data_clone.lock() {
+        let lock = match o_data.lock() {
             Ok(lock) => lock,
             Err(err) => {
                 log::error!("[{}] Error while locking data: {:?}", rank, err);
@@ -481,6 +493,7 @@ fn mpi_drive(
     });
 }
 
+// Processes a vehicle asyncronously using tokio
 fn mpi_tokio_drive(
     world: SystemCommunicator,
     rank: i32,
@@ -517,6 +530,7 @@ fn mpi_tokio_drive(
     }
 }
 
+// Receives a vehicle, processes it and sends it to the next rank
 fn process_vehicle(
     world: SystemCommunicator,
     rank: Rank,
@@ -532,13 +546,12 @@ fn process_vehicle(
         v.id
     );
 
+    // vehicle is done
     if v.is_parked || v.prev_id == v.next_id {
-        // vehicle is done
         log::debug!("[{}] - 1 Vehicle {} is done driving", rank, v.id);
         return Ok(true);
     }
 
-    // II.3
     v.marked_for_deletion = false;
 
     // ask root for edge length
@@ -562,7 +575,6 @@ fn process_vehicle(
         .this_process()
         .receive_vec_with_tag::<f64>(EDGE_LENGTH_RESPONSE);
 
-    // II.5
     v.delta += el_msg[0];
 
     log::debug!(
