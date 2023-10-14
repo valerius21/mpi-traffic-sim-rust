@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Mattfeld"
+  given-names: "Valerius"
+  orcid: ""
+- family-names: "Vetter"
+  given-names: "Bianca"
+  orcid: ""
+title: "MPI Traffic Simulator in Rust"
+version: 1.0.0
+doi: ""
+date-released: 2023-10-14
+url: "https://github.com/valerius21/mpi-traffic-sim-rust"
